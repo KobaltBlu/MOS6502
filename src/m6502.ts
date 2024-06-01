@@ -170,7 +170,6 @@ export class M6502 extends CPU {
   }
 
   clock(memory: MemoryController){
-    console.log('M6502: Clock', this.cycleCount);
     if(!this.cycleCount) {
       const instrCode = memory.readByte(this.programCounter++);
       console.log('M6502: Clock', 'instruction', instrCode);
@@ -182,6 +181,7 @@ export class M6502 extends CPU {
       return;
     }
 
+    console.log('M6502: Clock', this.cycleCount);
     this.cycleCount -= 1;
     if(this.cycleCount < 0){ this.cycleCount = 0; }
   }

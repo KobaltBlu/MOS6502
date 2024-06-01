@@ -16,5 +16,9 @@ export default class ROM extends Memory {
     return;
   }
 
+  writeData(data: Uint8Array){
+    this.bytes = data;
+  }
+
 }
   
