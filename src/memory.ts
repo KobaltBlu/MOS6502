@@ -39,7 +39,8 @@ export default class Memory {
 
   readShortLE(address: number): number {
     address -= this.offset;
-    return (this.bytes[address + 1] << 2) | this.bytes[address];
+    console.log(this.bytes[address], this.bytes[address + 1])
+    return (this.bytes[address + 1] << 8) | this.bytes[address];
   }
 
   readByte(address: number): number {

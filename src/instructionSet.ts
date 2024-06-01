@@ -9,7 +9,7 @@ const PAGE_SIZE = 255;
 
 export class InstructionSet  {
 
-    static LDA(cpu: M6502, memory: Memory, address: number): number {
+    /*static LDA(cpu: M6502, memory: Memory, address: number): number {
         cpu.accumulator = address;
 
         cpu.status &= ~cpu.FLAG_Z;
@@ -241,7 +241,7 @@ export class InstructionSet  {
             return 3;
         }
         return 2;
-    }
+    }*/
 
 
 }

@@ -165,15 +165,19 @@ export class M6502 extends CPU {
     this.data.fill(0);
     this.programCounter = memory.readShortLE(0xFFFC);
     this.stackPointer = STACK_MAX;
+
+    console.log('M6502: RESET', this.programCounter, this.stackPointer);
   }
 
   clock(memory: MemoryController){
+    console.log('M6502: Clock', this.cycleCount);
     if(!this.cycleCount) {
       const instrCode = memory.readByte(this.programCounter++);
+      console.log('M6502: Clock', 'instruction', instrCode);
       const instr = this.instructionsMap.get(instrCode);
       if(typeof instr === 'function'){
         let data = 0;
-        this.cycleCount = instr(memory, data);
+        this.cycleCount = instr.call(this, memory, data);
       }
       return;
     }
@@ -649,7 +653,7 @@ export class M6502 extends CPU {
   EOR_ZP_XI(memory: MemoryController, address: number): number {
     //Get the real address from the ZP
     let addr = memory.readByte(address + this.regX);
-    addr |= (memory.readByte(address + this.regX + 1) << 2);
+    addr |= (memory.readByte(address + this.regX + 1) << 8);
     
     //Use the memory addr to get the real value
     this.accumulator |= memory.readByte(addr);
@@ -861,6 +865,10 @@ export class M6502 extends CPU {
   }
 
   JMP(memory: MemoryController, address: number): number {
+    console.log('JMP', address);
+    address = memory.readShortLE(this.programCounter);
+    this.programCounter += 2;
+    console.log('JMP', address);
     this.programCounter = address;
     return 3;
   }

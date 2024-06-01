@@ -24,7 +24,7 @@ export default class Machine {
     this.cpu = new M6502();
     this.ppu = new PPU(320, 240);
 
-    this.rom = new ROM(0xFFF);
+    this.rom = new ROM(0x0FFF);
     this.rom.bytes[0x0000] = OPCODES.NOP;
     this.rom.bytes[0x0000 + 1] = OPCODES.NOP;
     this.rom.bytes[0x0000 + 2] = OPCODES.NOP;
@@ -51,6 +51,11 @@ export default class Machine {
     this.memoryController = new MemoryController();
     this.memoryController.add(0x0000, this.ram);
     this.memoryController.add(0xF000, this.rom);
+
+    console.log(this.rom.bytes);
+    console.log(this.memoryController.readByte(0xF000));
+
+    console.log(this.memoryController.readShortLE(0xFFFC));
 
     //Test ROM Data
     //16 NOPs
@@ -81,18 +86,22 @@ export default class Machine {
   }
 
   run() {
+    console.log('run');
     this.reset();
     this.running = true;
+    this.cpu.reset(this.memoryController);
     while (this.running) {
       this.onClockTick();
     }
   }
 
   onClockTick() {
+    console.log('Clock', 'Cycle');
     this.cpu.clock(this.memoryController);
     this.ppu.clock();
     this.ppu.clock();
     this.ppu.clock();
+    // this.reset();
   }
 
   reset() {

@@ -1,5 +1,4 @@
-const world = 'world';
+import Machine from "./src/machine";
 
-export function hello(who: string = world): string {
-  return `Hello ${who}! `;
-}
+const machine = new Machine();
+machine.run();

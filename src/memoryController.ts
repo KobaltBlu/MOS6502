@@ -12,6 +12,7 @@ export class MemoryController {
     for(let i = 0; i < memory.totalBytes; i++){
       this.memoryMap.set(address + i, memory);
     }
+    memory.offset = address;
   }
 
   getMemoryAtAddress(address: number): Memory {

@@ -5,6 +5,10 @@ export default class CPU {
     
   }
 
+  reset(memory: MemoryController){
+    
+  }
+
   clock(memory: MemoryController) {
 
   }
