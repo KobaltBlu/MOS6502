@@ -53,8 +53,23 @@ export default class Machine {
     this.ppu.clock();
     // this.reset();
 
+    let output = new Array(32);
+    output.fill('_', 0, 32);
+    for(let i = 0; i < 32; i++){
+      output[i] = String.fromCharCode(this.memoryController.readByte(0x1000 + i));
+    }
+
+    console.clear();
+    console.log('M6502:', 'instruction', (this.cpu as M6502).currentInstCode, 'cycle', (this.cpu as M6502).cycleCount + '/' + (this.cpu as M6502).currentIntrCycles, 'address', (this.cpu as M6502).currentIntrAddress);
+    console.log(`
+//////////////////////////////////////
+// ${output.join('')} //
+//////////////////////////////////////
+  `);
+
     let sElapsed = this.getTimer() - sNano;
-    while(sElapsed < 1000000/2){
+    while(sElapsed < 10000){
+    // while(sElapsed < 1000000/4){
       sElapsed = this.getTimer() - sNano;
     }
   }

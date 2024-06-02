@@ -56,7 +56,8 @@ export default class Memory {
 
   writeByte(address: number, value: number): void {
     address -= this.offset;
-    this.bytes[address] = (value & 0x3) & 0xFF;
+    this.bytes[address] = (value & 0xFF) & 0xFF;
+    console.log('writeByte', address, value, this.bytes[address]);
   }
 
 }

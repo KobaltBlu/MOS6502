@@ -14,8 +14,9 @@ const STACK_MAX = 0x01FF;
 
 interface InstructionInfo {
   instruction: (memory?: MemoryController, address?: number) => number;
-  bytes: number;
-  data_bytes: number;
+  address: (memory?: MemoryController) => number;
+  // bytes: number;
+  // data_bytes: number;
 }
 
 export class M6502 extends CPU {
@@ -68,95 +69,104 @@ export class M6502 extends CPU {
   address = new Uint8Array(2);
 
   /** A lookup map initialized with all of the supported instructions by their opcode */
-  instructionsMap = new Map<number, (memory: MemoryController, address?: number) => number>();
+  instructionsMap = new Map<number, InstructionInfo>();
 
   /** How many cycles are left for the current instruction */
   cycleCount: number = 0;
+
+  /** Current instruction number */
+  currentInst: InstructionInfo;
+  currentInstCode: number = 0;
+  currentIntrAddress: number = 0;
+  currentIntrCycles: number = 0;
 
   constructor(){
     super();
 
     //LDA
-    this.instructionsMap.set(OPCODES.LDA, this.LDA);
-    this.instructionsMap.set(OPCODES.LDA_ABS, this.LDA_ABS);
-    this.instructionsMap.set(OPCODES.LDA_ABS_X, this.LDA_ABS_Y);
-    this.instructionsMap.set(OPCODES.LDA_ZP, this.LDA_ZP);
+    this.instructionsMap.set(OPCODES.LDA, {instruction: this.LDA, address: this.readByte });
+    this.instructionsMap.set(OPCODES.LDA_ABS, {instruction: this.LDA_ABS, address: this.readShort });
+    this.instructionsMap.set(OPCODES.LDA_ABS_X, {instruction: this.LDA_ABS_Y, address: this.readShort });
+    this.instructionsMap.set(OPCODES.LDA_ZP, {instruction: this.LDA_ZP, address: this.readByte });
 
-    this.instructionsMap.set(OPCODES.LDX, this.LDX);
-    this.instructionsMap.set(OPCODES.LDX_ABS, this.LDX_ABS);
-    this.instructionsMap.set(OPCODES.LDX_ABS_Y, this.LDX_ABS_Y);
-    this.instructionsMap.set(OPCODES.LDX_ZP, this.LDX_ZP);
-    this.instructionsMap.set(OPCODES.LDX_ZP_Y, this.LDX_ZP_Y);
+    this.instructionsMap.set(OPCODES.LDX, {instruction: this.LDX, address: this.readByte });
+    this.instructionsMap.set(OPCODES.LDX_ABS, {instruction: this.LDX_ABS, address: this.readShort });
+    this.instructionsMap.set(OPCODES.LDX_ABS_Y, {instruction: this.LDX_ABS_Y, address: this.readShort });
+    this.instructionsMap.set(OPCODES.LDX_ZP, {instruction: this.LDX_ZP, address: this.readByte });
+    this.instructionsMap.set(OPCODES.LDX_ZP_Y, {instruction: this.LDX_ZP_Y, address: this.readByte });
 
-    this.instructionsMap.set(OPCODES.LDY, this.LDY);
-    this.instructionsMap.set(OPCODES.LDY_ABS, this.LDY_ABS);
-    this.instructionsMap.set(OPCODES.LDY_ABS_X, this.LDY_ABS_X);
-    this.instructionsMap.set(OPCODES.LDY_ZP, this.LDY_ZP);
-    this.instructionsMap.set(OPCODES.LDY_ZP_X, this.LDY_ZP_X);
+    this.instructionsMap.set(OPCODES.LDY, {instruction: this.LDY, address: this.readByte });
+    this.instructionsMap.set(OPCODES.LDY_ABS, {instruction: this.LDY_ABS, address: this.readShort });
+    this.instructionsMap.set(OPCODES.LDY_ABS_X, {instruction: this.LDY_ABS_X, address: this.readShort });
+    this.instructionsMap.set(OPCODES.LDY_ZP, {instruction: this.LDY_ZP, address: this.readByte });
+    this.instructionsMap.set(OPCODES.LDY_ZP_X, {instruction: this.LDY_ZP_X, address: this.readByte });
 
-    this.instructionsMap.set(OPCODES.DEC_ABS, this.DEC_ABS);
-    this.instructionsMap.set(OPCODES.DEC_ABS_X, this.DEC_ABS_X);
-    this.instructionsMap.set(OPCODES.DEC_ZP, this.DEC_ZP);
-    this.instructionsMap.set(OPCODES.DEC_ZP_X, this.DEC_ZP_X);
-    this.instructionsMap.set(OPCODES.DEX, this.DEX);
-    this.instructionsMap.set(OPCODES.DEY, this.DEY);
+    this.instructionsMap.set(OPCODES.DEC_ABS, {instruction: this.DEC_ABS, address: this.readShort });
+    this.instructionsMap.set(OPCODES.DEC_ABS_X, {instruction: this.DEC_ABS_X, address: this.readShort });
+    this.instructionsMap.set(OPCODES.DEC_ZP, {instruction: this.DEC_ZP, address: this.readByte });
+    this.instructionsMap.set(OPCODES.DEC_ZP_X, {instruction: this.DEC_ZP_X, address: this.readByte });
+
+    this.instructionsMap.set(OPCODES.DEX, {instruction: this.DEX, address: undefined });
+    this.instructionsMap.set(OPCODES.DEY, {instruction: this.DEY, address: undefined });
+    
+    //STA
+    this.instructionsMap.set(OPCODES.STA_ABS, {instruction: this.STA_ABS, address: this.readShort });
+    this.instructionsMap.set(OPCODES.STA_ABS_X, {instruction: this.STA_ABS_X, address: this.readShort });
+    this.instructionsMap.set(OPCODES.STA_ABS_Y, {instruction: this.STA_ABS_Y, address: this.readShort });
+    this.instructionsMap.set(OPCODES.STA_ZP, {instruction: this.STA_ZP, address: this.readByte });
+    this.instructionsMap.set(OPCODES.STA_ZP_X, {instruction: this.STA_ZP_X, address: this.readByte });
+    this.instructionsMap.set(OPCODES.STA_ZP_XI, {instruction: this.STA_ZP_XI, address: this.readByte });
+    this.instructionsMap.set(OPCODES.STA_ZP_YI, {instruction: this.STA_ZP_YI, address: this.readByte });
 
     //STX
-    this.instructionsMap.set(OPCODES.STX_ABS, this.STX_ABS);
-    this.instructionsMap.set(OPCODES.STX_ZP, this.STX_ZP);
-    this.instructionsMap.set(OPCODES.STX_ZPY, this.STX_ZPY);
+    this.instructionsMap.set(OPCODES.STX_ABS, {instruction: this.STX_ABS, address: this.readShort });
+    this.instructionsMap.set(OPCODES.STX_ZP, {instruction: this.STX_ZP, address: this.readByte });
+    this.instructionsMap.set(OPCODES.STX_ZPY, {instruction: this.STX_ZPY, address: this.readByte });
 
     //STY
-    this.instructionsMap.set(OPCODES.STY_ABS, this.STY_ABS);
-    this.instructionsMap.set(OPCODES.STY_ZP, this.STY_ZP);
-    this.instructionsMap.set(OPCODES.STY_ZPX, this.STY_ZPX);
+    this.instructionsMap.set(OPCODES.STY_ABS, {instruction: this.STY_ABS, address: this.readShort });
+    this.instructionsMap.set(OPCODES.STY_ZP, {instruction: this.STY_ZP, address: this.readByte });
+    this.instructionsMap.set(OPCODES.STY_ZPX, {instruction: this.STY_ZPX, address: this.readByte });
+
     //IN
-    this.instructionsMap.set(OPCODES.INX, this.INX);
-    this.instructionsMap.set(OPCODES.INY, this.INY);
+    this.instructionsMap.set(OPCODES.INX, {instruction: this.INX, address: undefined });
+    this.instructionsMap.set(OPCODES.INY, {instruction: this.INY, address: undefined });
 
     //JMP
-    this.instructionsMap.set(OPCODES.JMP, this.JMP);
-    this.instructionsMap.set(OPCODES.JMP_I, this.JMP_I);
+    this.instructionsMap.set(OPCODES.JMP, {instruction: this.JMP, address: this.readShort });
+    this.instructionsMap.set(OPCODES.JMP_I, {instruction: this.JMP_I, address: this.readShort });
 
     //JSR
-    this.instructionsMap.set(OPCODES.JSR, this.JSR);
-    this.instructionsMap.set(OPCODES.RTS, this.RTS);
+    this.instructionsMap.set(OPCODES.JSR, {instruction: this.JSR, address: this.readShort });
+    this.instructionsMap.set(OPCODES.RTS, {instruction: this.RTS, address: undefined });
 
     //CLEAR
-    this.instructionsMap.set(OPCODES.CLC, this.CLC);
-    this.instructionsMap.set(OPCODES.CLD, this.CLD);
-    this.instructionsMap.set(OPCODES.CLI, this.CLI);
-    this.instructionsMap.set(OPCODES.CLV, this.CLV);
+    this.instructionsMap.set(OPCODES.CLC, {instruction: this.CLC, address: undefined });
+    this.instructionsMap.set(OPCODES.CLD, {instruction: this.CLD, address: undefined });
+    this.instructionsMap.set(OPCODES.CLI, {instruction: this.CLI, address: undefined });
+    this.instructionsMap.set(OPCODES.CLV, {instruction: this.CLV, address: undefined });
 
     //BRANCH
-    this.instructionsMap.set(OPCODES.BCC, this.BCC);
-    this.instructionsMap.set(OPCODES.BEQ, this.BEQ);
-    this.instructionsMap.set(OPCODES.BMI, this.BMI);
-    this.instructionsMap.set(OPCODES.BNE, this.BNE);
-    this.instructionsMap.set(OPCODES.BPL, this.BPL);
-    this.instructionsMap.set(OPCODES.BVC, this.BVC);
-    this.instructionsMap.set(OPCODES.BVS, this.BVS);
+    this.instructionsMap.set(OPCODES.BCC, {instruction: this.BCC, address: this.readShort });
+    this.instructionsMap.set(OPCODES.BEQ, {instruction: this.BEQ, address: this.readShort });
+    this.instructionsMap.set(OPCODES.BMI, {instruction: this.BMI, address: this.readShort });
+    this.instructionsMap.set(OPCODES.BNE, {instruction: this.BNE, address: this.readShort });
+    this.instructionsMap.set(OPCODES.BPL, {instruction: this.BPL, address: this.readShort });
+    this.instructionsMap.set(OPCODES.BVC, {instruction: this.BVC, address: this.readShort });
+    this.instructionsMap.set(OPCODES.BVS, {instruction: this.BVS, address: this.readShort });
 
-    this.instructionsMap.set(OPCODES.TAX, this.TAX);
-    this.instructionsMap.set(OPCODES.TAY, this.TAY);
-    this.instructionsMap.set(OPCODES.TSX, this.TSX);
-    this.instructionsMap.set(OPCODES.TXA, this.TXA);
-    this.instructionsMap.set(OPCODES.TXS, this.TXS);
-    this.instructionsMap.set(OPCODES.TYA, this.TYA);
+    this.instructionsMap.set(OPCODES.TAX, {instruction: this.TAX, address: undefined });
+    this.instructionsMap.set(OPCODES.TAY, {instruction: this.TAY, address: undefined });
+    this.instructionsMap.set(OPCODES.TSX, {instruction: this.TSX, address: undefined });
+    this.instructionsMap.set(OPCODES.TXA, {instruction: this.TXA, address: undefined });
+    this.instructionsMap.set(OPCODES.TXS, {instruction: this.TXS, address: undefined });
+    this.instructionsMap.set(OPCODES.TYA, {instruction: this.TYA, address: undefined });
 
-    this.instructionsMap.set(OPCODES.NOP, this.NOP);
-    this.instructionsMap.set(OPCODES.PLA, this.PLA);
-    this.instructionsMap.set(OPCODES.PLP, this.PLP);
-    this.instructionsMap.set(OPCODES.PHA, this.PHA);
-    this.instructionsMap.set(OPCODES.PHP, this.PHP);
-    
-    this.instructionsMap.set(OPCODES.STA_ABS, this.STA_ABS);
-    this.instructionsMap.set(OPCODES.STA_ABS_X, this.STA_ABS_X);
-    this.instructionsMap.set(OPCODES.STA_ABS_Y, this.STA_ABS_Y);
-    this.instructionsMap.set(OPCODES.STA_ZP, this.STA_ZP);
-    this.instructionsMap.set(OPCODES.STA_ZP_X, this.STA_ZP_X);
-    this.instructionsMap.set(OPCODES.STA_ZP_XI, this.STA_ZP_XI);
-    this.instructionsMap.set(OPCODES.STA_ZP_YI, this.STA_ZP_YI);
+    this.instructionsMap.set(OPCODES.NOP, {instruction: this.NOP, address: undefined });
+    this.instructionsMap.set(OPCODES.PLA, {instruction: this.PLA, address: undefined });
+    this.instructionsMap.set(OPCODES.PLP, {instruction: this.PLP, address: undefined });
+    this.instructionsMap.set(OPCODES.PHA, {instruction: this.PHA, address: undefined });
+    this.instructionsMap.set(OPCODES.PHP, {instruction: this.PHP, address: undefined });
   }
 
   reset(memory: MemoryController){
@@ -172,18 +182,37 @@ export class M6502 extends CPU {
   clock(memory: MemoryController){
     if(!this.cycleCount) {
       const instrCode = memory.readByte(this.programCounter++);
-      console.log('M6502: Clock', 'instruction', instrCode);
-      const instr = this.instructionsMap.get(instrCode);
-      if(typeof instr === 'function'){
-        let data = 0;
-        this.cycleCount = instr.call(this, memory, data);
+      // console.log('M6502: Clock', 'instruction', instrCode);
+      this.currentInstCode = instrCode;
+      this.currentInst = this.instructionsMap.get(instrCode);
+      if(typeof this.currentInst === 'object'){
+        this.currentIntrAddress = 0;
+        if(this.currentInst.address){
+          this.currentIntrAddress = this.currentInst.address.call(this, memory);
+        }
+        this.currentIntrCycles = this.cycleCount = this.currentInst.instruction.call(this, memory, this.currentIntrAddress);
       }
       return;
     }
 
-    console.log('M6502: Clock', this.cycleCount);
+    // console.log('M6502: Clock', this.cycleCount);
     this.cycleCount -= 1;
     if(this.cycleCount < 0){ this.cycleCount = 0; }
+  }
+
+  //-----------------//
+  // ADDRESS READERS //
+  //-----------------//
+
+  readByte(memory: MemoryController){
+    const address = memory.readByte(this.programCounter++);
+    return address;
+  }
+
+  readShort(memory: MemoryController){
+    const address = memory.readShortLE(this.programCounter++);
+    this.programCounter++;
+    return address;
   }
 
   //--------------//
@@ -865,10 +894,6 @@ export class M6502 extends CPU {
   }
 
   JMP(memory: MemoryController, address: number): number {
-    console.log('JMP', address);
-    address = memory.readShortLE(this.programCounter);
-    this.programCounter += 2;
-    console.log('JMP', address);
     this.programCounter = address;
     return 3;
   }
