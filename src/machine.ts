@@ -3,9 +3,9 @@ import CPU from "./cpu";
 import { M6502 } from "./m6502";
 import Memory from "./memory";
 import { MemoryController } from "./memoryController";
-import { OPCODES } from "./opcodes/m6502";
 import { PPU } from "./ppu";
 import ROM from "./rom";
+import { LCDScreen } from "./lcdScreen";
 
 export default class Machine {
   ram: Memory = undefined;
@@ -14,6 +14,7 @@ export default class Machine {
   bus: Bus = undefined;
 
   rom: ROM;
+  terminalScreen: LCDScreen;
   memoryController: MemoryController;
 
   running: boolean = false;
@@ -29,17 +30,17 @@ export default class Machine {
     this.memoryController = new MemoryController();
     this.memoryController.add(0x0000, this.ram);
     this.memoryController.add(0xF000, this.rom);
+
+    this.terminalScreen = new LCDScreen();
   }
 
   run() {
     console.log('run');
     this.reset();
     this.running = true;
-
-    console.log(this.memoryController.readByte(0xF000));
-    console.log(this.memoryController.readShortLE(0xFFFC));
     
     this.cpu.reset(this.memoryController);
+    console.clear();
     while (this.running) {
       this.onClockTick();
     }
@@ -51,25 +52,16 @@ export default class Machine {
     this.ppu.clock();
     this.ppu.clock();
     this.ppu.clock();
-    // this.reset();
 
-    let output = new Array(32);
-    output.fill('_', 0, 32);
-    for(let i = 0; i < 32; i++){
-      output[i] = String.fromCharCode(this.memoryController.readByte(0x1000 + i));
-    }
+    process.stdout.clearLine(1);
+    process.stdout.cursorTo(0, 0);
+    process.stdout.write('M6502: instruction ' + '0x'+this.cpu.currentInstCode.toString(16) + ' cycle ' + this.cpu.cycleCount + '/' + this.cpu.currentIntrCycles + ' address ' + this.cpu.currentIntrAddress);
+    
+    this.terminalScreen.clock(this.memoryController);
 
-    console.clear();
-    console.log('M6502:', 'instruction', (this.cpu as M6502).currentInstCode, 'cycle', (this.cpu as M6502).cycleCount + '/' + (this.cpu as M6502).currentIntrCycles, 'address', (this.cpu as M6502).currentIntrAddress);
-    console.log(`
-//////////////////////////////////////
-// ${output.join('')} //
-//////////////////////////////////////
-  `);
-
+    //Delay until x nanoseconds have elapsed
     let sElapsed = this.getTimer() - sNano;
-    while(sElapsed < 10000){
-    // while(sElapsed < 1000000/4){
+    while(sElapsed < 60){
       sElapsed = this.getTimer() - sNano;
     }
   }

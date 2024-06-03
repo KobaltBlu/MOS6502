@@ -1,4 +1,5 @@
 import CPU from "./cpu";
+import { InstructionInfo } from "./interface/InstructionInfo";
 import { MemoryController } from "./memoryController";
 import { OPCODES } from "./opcodes/m6502";
 
@@ -12,12 +13,6 @@ const STACK_MAX = 0x01FF;
 //TWO's complement subtraction via addition
 //a + (~b + 1)
 
-interface InstructionInfo {
-  instruction: (memory?: MemoryController, address?: number) => number;
-  address: (memory?: MemoryController) => number;
-  // bytes: number;
-  // data_bytes: number;
-}
 
 export class M6502 extends CPU {
   opcodes: typeof OPCODES = OPCODES;
@@ -67,18 +62,6 @@ export class M6502 extends CPU {
 
   //PINOUT ADDRESS
   address = new Uint8Array(2);
-
-  /** A lookup map initialized with all of the supported instructions by their opcode */
-  instructionsMap = new Map<number, InstructionInfo>();
-
-  /** How many cycles are left for the current instruction */
-  cycleCount: number = 0;
-
-  /** Current instruction number */
-  currentInst: InstructionInfo;
-  currentInstCode: number = 0;
-  currentIntrAddress: number = 0;
-  currentIntrCycles: number = 0;
 
   constructor(){
     super();
