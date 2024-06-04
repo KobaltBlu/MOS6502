@@ -12,6 +12,24 @@
   </p>
 </div>
 
+## Install
+```powershell
+npm install
+```
+<br />
+
+## How To Run (PowerShell)
+```powershell
+clear; npm run build; clear; node dist/bundle.js
+```
+<br />
+
+## How To Run (Shell)
+```powershell
+clear && npm run build && clear && node dist/bundle.js
+```
+Br/>
+
 ## License
 
 [GPL 3.0 (GNU General Public License)](LICENSE.md)
