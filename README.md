@@ -28,7 +28,7 @@ clear; npm run build; clear; node dist/bundle.js
 ```powershell
 clear && npm run build && clear && node dist/bundle.js
 ```
-Br/>
+<br/>
 
 ## License
 
