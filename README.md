@@ -9,6 +9,9 @@
 
   <p align="center">
     This is a WIP and very incomplete!!!
+    <br/>
+    <br/>
+    <img src="images/screenshot.png" alt="Logo" width="480">
   </p>
 </div>
 
