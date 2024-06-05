@@ -1,5 +1,4 @@
 import CPU from "./cpu";
-import { InstructionInfo } from "./interface/InstructionInfo";
 import { MemoryController } from "./memoryController";
 import { OPCODES } from "./opcodes/m6502";
 
