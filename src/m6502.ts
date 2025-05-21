@@ -12,7 +12,11 @@ const STACK_MAX = 0x01FF;
 //TWO's complement subtraction via addition
 //a + (~b + 1)
 
-
+/**
+ * M6502 class.
+ * 
+ * @extends CPU
+ */
 export class M6502 extends CPU {
   opcodes: typeof OPCODES = OPCODES;
   littleEndian: boolean = true;
