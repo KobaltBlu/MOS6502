@@ -9,9 +9,9 @@ export default class Bus {
   busSize: number = 8;
   data: number = 0;
   address: number = 0;
-  cache: BusTransaction[];
+  cache: BusTransaction[] = [];
   cacheCycle: number = 0;
-  devices: Device[];
+  devices: Device[] = [];
   memoryMap: Map<number, Device>;
 
   constructor(busSize: number = 8) {
