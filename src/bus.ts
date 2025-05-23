@@ -56,8 +56,19 @@ export default class Bus {
     this.memoryMap.set(offset, device);
   }
 
+  /**
+   * Scan the memoryMap and unregister the device at any location it is mapped to
+   * @param device the device to unregister
+   */
+  unregisterDevice(device: Device): void {
+    this.memoryMap.forEach((value, key, map) => {
+      if(value != device){ return; }
+      map.set(key, undefined);
+    });
+  }
+
   readByte(address: number): number {
-    const data = this.memoryMap.get(address)?.readByte(address) ?? 0xFF;
+    const data = this.memoryMap.get(address)?.readByte(address) ?? 0x00;
     this.cache.push({
       type: 'read',
       address,
@@ -68,7 +79,7 @@ export default class Bus {
   }
 
   readShortLE(address: number): number {
-    const data = this.memoryMap.get(address)?.readShortLE(address) ?? 0xFFFF;
+    const data = this.memoryMap.get(address)?.readShortLE(address) ?? 0x000;
     this.cache.push({
       type: 'read',
       address,
