@@ -12,6 +12,12 @@ export default class IOController extends Device {
     this.portIndex = 0;
   }
 
+  registerPorts(bus: Bus, offset: number){
+    for(let i = 0; i < this.ports; i++){
+      bus.registerDeviceAtOffset(offset + i, this); //PORT n
+    }
+  }
+
   clock(bus: Bus){
     if(this.portIndex < 0 || this.portIndex >= this.ports)
       return;

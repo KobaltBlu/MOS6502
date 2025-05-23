@@ -7,6 +7,15 @@ import ROM from "./rom";
 import { LCDScreen } from "./lcdScreen";
 import IOController from "./ioController";
 
+const SYSTEM_MAX_MEMORY = 0xFFFF;
+
+const MEMORY_RAM_START = 0x0000;
+const MEMORY_IO_START = 0x1770;
+const MEMORY_ROM_START = 0xF000;
+
+const RAM_SIZE = 0xF000;
+const ROM_SIZE = 0x0FFF;
+
 export default class Machine {
   ram: Memory = undefined;
   cpu: CPU = undefined;
@@ -23,11 +32,11 @@ export default class Machine {
   constructor() {
     this.bus = new Bus(8);
     this.ioBus = new Bus(8);
-    this.ram = new Memory(0xF000);
+    this.ram = new Memory(RAM_SIZE);
     this.cpu = new M6502();
     this.ppu = new PPU(320, 240);
 
-    this.rom = new ROM(0x0FFF);
+    this.rom = new ROM(ROM_SIZE);
 
     this.lcdScreen = new LCDScreen(32, 2);
     this.lcdIOController = new IOController(2);
@@ -46,11 +55,10 @@ export default class Machine {
       
     });
 
-    this.bus.registerDeviceAtOffset(0x1770, this.lcdIOController); //PORT 0
-    this.bus.registerDeviceAtOffset(0x1771, this.lcdIOController); //PORT 1
+    this.lcdIOController.registerPorts(this.bus, MEMORY_IO_START);
 
-    this.bus.registerDeviceAuto(0x0000, this.ram);
-    this.bus.registerDeviceAuto(0xF000, this.rom);
+    this.bus.registerDeviceAuto(MEMORY_RAM_START, this.ram);
+    this.bus.registerDeviceAuto(MEMORY_ROM_START, this.rom);
 
     this.ioBus.registerDeviceAuto(0x0000, this.lcdScreen);
   }
