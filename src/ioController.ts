@@ -15,7 +15,7 @@ export default class IOController extends Device {
   clock(bus: Bus){
     if(this.portIndex < 0 || this.portIndex >= this.ports)
       return;
-    this.writeByte(this.portIndex * 8, bus.data);
+    this.writeByte(this.portIndex, bus.data);
   }
 
 }
