@@ -1,8 +1,7 @@
-export default class Memory {
-  bytes: Uint8Array = new Uint8Array(0);
-  buffer: ArrayBuffer;
-  data: DataView;
-  totalBytes: number = 0;
+import { Device } from "./device";
+
+export default class Memory extends Device {
+  name: string = 'Memory';
   pointer: number = 0;
   offset: number = 0;
 
@@ -11,10 +10,7 @@ export default class Memory {
    * @param num_bytes 
    */
   constructor(num_bytes: number = 0) {
-    this.bytes = new Uint8Array(num_bytes);
-    this.buffer = this.bytes.buffer;
-    this.data = new DataView(this.buffer);
-    this.totalBytes = num_bytes;
+    super(num_bytes);
   }
 
   /**
@@ -35,29 +31,6 @@ export default class Memory {
     
     //Increase the pointer by the number of bytes allocated
     this.pointer += num_bytes;
-  }
-
-  readShortLE(address: number): number {
-    address -= this.offset;
-    // console.log(this.bytes[address], this.bytes[address + 1])
-    return (this.bytes[address + 1] << 8) | this.bytes[address];
-  }
-
-  readByte(address: number): number {
-    address -= this.offset;
-    return this.bytes[address];
-  }
-
-  writeShortLE(address: number, value: number): void {
-    address -= this.offset;
-    this.bytes[address] = (value & 0x3) & 0xFF;
-    this.bytes[address + 1] = ((value & 0xC) >> 2) & 0xFF;
-  }
-
-  writeByte(address: number, value: number): void {
-    address -= this.offset;
-    this.bytes[address] = (value & 0xFF) & 0xFF;
-    // console.log('writeByte', address, value, this.bytes[address]);
   }
 
 }

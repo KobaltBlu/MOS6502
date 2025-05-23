@@ -1,6 +1,6 @@
-import type { MemoryController } from "../memoryController";
+import type Bus from "../bus";
 
 export interface InstructionInfo {
-  instruction: (memory?: MemoryController, address?: number) => number;
-  address: (memory?: MemoryController) => number;
+  instruction: (bus?: Bus, address?: number) => number;
+  address: (bus?: Bus) => number;
 }

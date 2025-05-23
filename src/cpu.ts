@@ -1,5 +1,5 @@
 import type { InstructionInfo } from "./interface/InstructionInfo";
-import type { MemoryController } from "./memoryController";
+import type Bus from "./bus";
 
 export default class CPU {
 
@@ -14,16 +14,23 @@ export default class CPU {
   currentInstCode: number = 0;
   currentIntrAddress: number = 0;
   currentIntrCycles: number = 0;
+
+  address: number = 0;
+  data: number = 0;
+  /**
+   * The pins of the device
+   */
+  pins: number[] = [];
   
   constructor() {
     
   }
 
-  reset(memory: MemoryController){
+  reset(bus: Bus){
     
   }
 
-  clock(memory: MemoryController) {
+  clock(bus: Bus) {
 
   }
 
