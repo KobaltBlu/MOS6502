@@ -45,10 +45,15 @@ export default class Machine {
       this.lcdIOController.portIndex = -1;
       if(bus.address === 0x1770){
         this.lcdIOController.portIndex = 0;
+        this.lcdScreen.RS = bus.getBusBit(7);
+        this.lcdScreen.RW = bus.getBusBit(6);
+        this.lcdScreen.E = bus.getBusBit(5);
       } else if(bus.address === 0x1771){
         this.lcdIOController.portIndex = 1;
+        this.lcdScreen.RS = bus.getBusBit(7);
+        this.lcdScreen.RW = bus.getBusBit(6);
+        this.lcdScreen.E = bus.getBusBit(5);
       }
-      // this.ioBus.data = 
     });
 
     this.lcdScreen.setOnBeforeClock((bus: Bus) => {

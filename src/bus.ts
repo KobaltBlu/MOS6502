@@ -109,6 +109,11 @@ export default class Bus {
     });
   }
 
+  getBusBit(index: number = 0){
+    const nMask = (1 << index);
+    return (this.data & nMask) == nMask ? 1 : 0;
+  }
+
   reset(): void {
     this.address = 0;
     this.data = 0;

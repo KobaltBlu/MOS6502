@@ -28,7 +28,7 @@ export class Device {
   /**
    * The pins of the device
    */
-  pins: number[] = [];
+  pins: Map<number, boolean> = new Map();
 
   onBeforeClock: (bus: Bus) => void = () => {};
   onAfterClock: (bus: Bus) => void = () => {};
@@ -38,7 +38,7 @@ export class Device {
     this.buffer = this.bytes.buffer;
     this.data = new DataView(this.buffer);
     this.totalBytes = dataSize;
-    this.pins = new Array(pinCount).fill(0);
+    this.pins = new Map();
   }
 
   setOnBeforeClock(callback: (bus: Bus) => void){
