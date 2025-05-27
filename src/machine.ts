@@ -30,6 +30,7 @@ export default class Machine {
   running: boolean = false;
 
   constructor() {
+    console.clear();
     this.bus = new Bus(8);
     this.ioBus = new Bus(8);
     this.ram = new Memory(RAM_SIZE);
@@ -85,13 +86,15 @@ export default class Machine {
     if(!this.running){
       return;
     }
+
+    let screenY = 0;
     
     //CPU
     this.cpu.clock(this.bus);
 
     //TERMINAL
     process.stdout.clearLine(1);
-    process.stdout.cursorTo(0, 0);
+    process.stdout.cursorTo(0, screenY++);
     process.stdout.write('M6502: instruction ' + '0x'+this.cpu.currentInstCode.toString(16) + ' cycle ' + this.cpu.cycleCount + '/' + this.cpu.currentIntrCycles + ' address ' + this.cpu.currentIntrAddress);
     
     //BUS
@@ -100,6 +103,44 @@ export default class Machine {
     //DEVICES
     for(let i = 0, dLen = this.bus.devices.length; i < dLen; i++){
       this.bus.devices[i].clock(this.bus);
+    }
+
+    this.ioBus.clock();
+    this.lcdScreen.clock(this.ioBus);
+
+    /**
+     * Draw LCD Screen Ouput
+     */
+    if(this.lcdScreen.screenUpdated)
+    {
+      const cols = this.lcdScreen.columns;
+      const nColumns = cols + 4;
+      const nRight = nColumns - 1;
+      const top = new Array(nColumns);
+      top.fill('═');
+      top[0] = '╔';
+      top[nRight] = '╗';
+
+      const bottom = new Array(nColumns);
+      bottom.fill('═');
+      bottom[0] = '╚';
+      bottom[nRight] = '╝';
+
+      process.stdout.cursorTo(0, screenY++);
+      process.stdout.clearLine(0);
+      process.stdout.write(top.join(''));
+
+      for(let i = 0; i < this.lcdScreen.rows; i++){
+        process.stdout.cursorTo(0, screenY++);
+        process.stdout.clearLine(0);
+        const offset = i * cols;
+        const rowData = Array.from(this.lcdScreen.bytes.slice(offset, offset + cols)).map(b => !b ? ' ' : String.fromCharCode(b));
+        process.stdout.write(`║ ${rowData.join('')} ║`);
+      }
+      
+      process.stdout.cursorTo(0, screenY++);
+      process.stdout.clearLine(0);
+      process.stdout.write(bottom.join(''));
     }
 
     //NEXT TICK

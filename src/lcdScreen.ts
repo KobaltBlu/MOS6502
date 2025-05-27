@@ -44,9 +44,17 @@ export class LCDScreen extends Device {
   RW: number = 0;
   E: number = 0;
 
-  D: number = 0; //DISPLAY ON/OFF
-  C: number = 0; //CURSOR ON/OFF
-  B: number = 0; //BLINK ON/OFF
+  D: number = 0; //DISPLAY ON|OFF
+  C: number = 0; //CURSOR ON|OFF
+  B: number = 0; //BLINK ON|OFF
+  DI: number = 0; //DECREMENT|INCREMENT
+  SL: number = 0; //SHIFT LEFT|RIGHT
+  DL: number = 0; //8-BIT|4-BIT
+  N: number = 0; //1-LINE|2-LINE
+  F: number = 0; //5x10|5x8
+  BF: number = 0; //BUSY FLAG
+
+  screenUpdated: boolean = false;
 
   constructor(columns: number = 32, rows: number = 1){
     super(columns * rows);
@@ -54,11 +62,15 @@ export class LCDScreen extends Device {
     this.rows = rows;
     this.currentColumn = 0;
     this.currentRow = 0;
-    // this.buffer = new Array(this.columns * this.rows);
+    this.screenUpdated = true;
   }
 
   clock(bus: Bus){
-    if(!this.E) return;
+    this.screenUpdated = false;
+    if(!this.E){
+      this.onClockEnd();
+      return;
+    }
 
     /**
      * INSTRUCTION REGISTER
@@ -66,7 +78,7 @@ export class LCDScreen extends Device {
     if(!this.RS)
     {
       this.currentInstruction = this.getInstructionCode(bus.data);
-      this.processInstruction();
+      this.processInstruction(bus.data);
     }
     /**
      * DATA REGISTER
@@ -75,76 +87,15 @@ export class LCDScreen extends Device {
     {
       const address = this.currentColumn + (this.currentRow * this.columns);
       this.data.setUint8(address, bus.data);
+      this.screenUpdated = true;
     }
+    this.onClockEnd();
+  }
 
-    /*
-    if(this.clear){
-      this.buffer.fill(' ');
-      const nColumns = this.columns + 4;
-      for(let i = 0; i < nColumns; i++){
-        if(i == 0){
-          this.buffer[i] = '╔';
-        }
-        else if(i == nColumns - 1){
-          this.buffer[i] = '╗';
-        }
-        else if(i == this.columns * this.rows){
-          this.buffer[i] = '╚';
-        }
-        else if(i == this.columns * this.rows + this.columns + 3){
-          this.buffer[i] = '╝';
-        }
-        else{
-          this.buffer[i] = '═';
-        }
-      }
-      this.clear = false;
-      return;
-    }
-
-    if(!this.wait){
-      const char = String.fromCharCode(bus.readByte(this.ramOffset + this.currentColumn) || 0x20);
-      this.buffer[this.currentColumn] = char;
-
-
-      // for(let i = 0; i < this.columns; i++){
-      //   this.buffer[i] = String.fromCharCode(memory.readByte(this.ramOffset + i) || 0x20);
-      // }
-
-      process.stdout.clearLine(0);
-      process.stdout.cursorTo(0, 0);
-
-      const nColumns = this.columns + 4;
-      const nRight = nColumns - 1;
-      const top = new Array(nColumns);
-      top.fill('═');
-      top[0] = '╔';
-      top[nRight] = '╗';
-
-      const bottom = new Array(nColumns);
-      bottom.fill('═');
-      bottom[0] = '╚';
-      bottom[nRight] = '╝';
-
-      process.stdout.cursorTo(0, 1);
-      process.stdout.write(top.join(''));
-
-      process.stdout.cursorTo(0, 2);
-      process.stdout.clearLine(0);
-      process.stdout.write(`║ ${this.buffer.join('')} ║`);
-    
-      process.stdout.cursorTo(0, 3);
-      process.stdout.write(bottom.join(''));
-
-      this.wait = 1000;
-    }
-    this.wait -= 1;
-
-    // process.stdout.cursorTo(0, 4);
-    // process.stdout.clearLine(0);
-    // process.stdout.write(`Wait: ${this.wait}`);
-
-    */
+  onClockEnd(){
+    this.RS = 0;
+    this.RW = 0;
+    this.E = 0;
   }
 
   getInstructionCode(value: number): number {
@@ -159,10 +110,36 @@ export class LCDScreen extends Device {
     return INSTR_NOP;                               // Unknown / invalid
   }
 
-  processInstruction(){
+  processInstruction(data: number){
     if(this.currentInstruction == INSTR_NOP) return;
-
-    this.currentInstruction = INSTR_NOP;
+    
+    if(this.currentInstruction == INSTR_CLEAR){
+      this.bytes.fill(0);
+      this.screenUpdated = true;
+    }
+    else if(this.currentInstruction == INSTR_RETN_HOME){
+      this.currentColumn = 0;
+      this.currentRow = 0;
+      this.screenUpdated = true;
+    }
+    else if(this.currentInstruction == INSTR_ENTRY_MODE){
+      this.DI = (data & 0x01) ? 1 : 0;
+      this.SL = (data & 0x02) ? 1 : 0;
+    }
+    else if(this.currentInstruction == INSTR_DSPLY_STATE){
+      this.D = (data & 0x01) ? 1 : 0;
+      this.C = (data & 0x02) ? 1 : 0;
+      this.B = (data & 0x04) ? 1 : 0;
+    }
+    else if(this.currentInstruction == INSTR_CD_SHIFT){
+      this.SL = (data & 0x01) ? 1 : 0;
+      this.DL = (data & 0x02) ? 1 : 0;
+    }
+    else if(this.currentInstruction == INSTR_FUNC_SET){
+      this.DL = (data & 0x04) ? 1 : 0;
+      this.N = (data & 0x08) ? 1 : 0;
+      this.F = (data & 0x10) ? 1 : 0;
+    }
   }
 
 }
