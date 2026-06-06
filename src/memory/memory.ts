@@ -20,7 +20,7 @@ export default class Memory implements MemoryDevice {
       throw new Error("Cannot allocate less than 1 byte of memory!");
     }
 
-    if (this.pointer + num_bytes < this.totalBytes) {
+    if (this.pointer + num_bytes > this.totalBytes) {
       throw new Error(
         `You cannot allocate more than the available amount of memory. Pointer: ${this.pointer}, Requested: ${num_bytes}`
       );

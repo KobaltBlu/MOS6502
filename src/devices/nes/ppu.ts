@@ -13,6 +13,8 @@ import {
 } from "../../machines/nes/interrupts";
 import { renderFrame, renderScanline, type PpuRenderState } from "./render";
 
+const DEBUG_PPU_SCROLL = true;
+
 export type ChrReadCallback = (address: number) => number;
 export type ChrWriteCallback = (address: number, value: number) => void;
 
@@ -43,6 +45,9 @@ export class NesPpu implements MemoryDevice {
   private ppuAddr = 0;
   private vramReadBuffer = 0;
 
+  private pendingSprite0HitScanline = -1;
+  private pendingSprite0HitDot = -1;
+
   readByte(address: number): number {
     const index = (address & 0x2007) - this.baseAddress;
     if (index < 0 || index >= this.registers.length) {
@@ -52,22 +57,38 @@ export class NesPpu implements MemoryDevice {
     switch (index) {
       case 2: {
         let status = this.registers[2] & (0x1f | PPUSTATUS_VBLANK | PPUSTATUS_SPRITE_OVERFLOW);
+
         if (this.sprite0Hit) {
           status |= PPUSTATUS_SPRITE0_HIT;
         }
+
+        if (DEBUG_PPU_SCROLL && (status & PPUSTATUS_SPRITE0_HIT) !== 0) {
+          console.log("$2002 sprite0 read", {
+            scanline: this.scanline,
+            dot: this.dot,
+            scrollX: this.scrollX,
+            scrollY: this.scrollY,
+            ctrl: this.registers[0],
+            mask: this.registers[1],
+          });
+        }
+
         this.registers[2] &= ~PPUSTATUS_VBLANK;
         this.addressLatch = false;
         this.scrollLatch = false;
         return status;
       }
+
       case 4:
         return this.oam[this.oamAddress & 0xff];
+
       case 7: {
         const addr = this.ppuAddr;
         const value = this.readPpuData(addr);
         this.ppuAddr = (this.ppuAddr + this.vramIncrement()) & 0x3fff;
         return value;
       }
+
       default:
         return this.registers[index];
     }
@@ -80,26 +101,60 @@ export class NesPpu implements MemoryDevice {
     }
 
     value &= 0xff;
+
     switch (index) {
       case 0:
-      case 1:
-      case 3:
         this.registers[index] = value;
-        if (index === 3) {
-          this.oamAddress = value;
+
+        if (DEBUG_PPU_SCROLL) {
+          console.log("$2000 PPUCTRL", {
+            value,
+            nametable: value & 0x03,
+            scanline: this.scanline,
+            dot: this.dot,
+          });
         }
         break;
+
+      case 1:
+        this.registers[index] = value;
+        break;
+
+      case 3:
+        this.registers[index] = value;
+        this.oamAddress = value;
+        break;
+
       case 4:
         this.oam[this.oamAddress++ & 0xff] = value;
         break;
-      case 5:
+
+      case 5: {
+        const axis = this.scrollLatch ? "Y" : "X";
+
         if (!this.scrollLatch) {
           this.scrollX = value;
         } else {
           this.scrollY = value;
         }
+
+        if (DEBUG_PPU_SCROLL) {
+          console.log("$2005 PPUSCROLL", {
+            axis,
+            value,
+            scrollX: this.scrollX,
+            scrollY: this.scrollY,
+            scanline: this.scanline,
+            dot: this.dot,
+            ctrl: this.registers[0],
+            nametable: this.registers[0] & 0x03,
+          });
+        }
+
         this.scrollLatch = !this.scrollLatch;
         break;
+      }
+
       case 6:
         if (!this.addressLatch) {
           this.ppuAddr = (this.ppuAddr & 0x00ff) | ((value & 0x3f) << 8);
@@ -107,14 +162,18 @@ export class NesPpu implements MemoryDevice {
           this.ppuAddr = (this.ppuAddr & 0xff00) | value;
           this.ppuAddr &= 0x3fff;
         }
+
         this.addressLatch = !this.addressLatch;
         break;
+
       case 7:
         this.writeVramInternal(this.ppuAddr, value);
         this.ppuAddr = (this.ppuAddr + this.vramIncrement()) & 0x3fff;
         break;
+
       default:
         this.registers[index] = value;
+        break;
     }
   }
 
@@ -138,6 +197,7 @@ export class NesPpu implements MemoryDevice {
     if (!this.nmiRequested) {
       return false;
     }
+
     this.nmiRequested = false;
     return true;
   }
@@ -149,13 +209,24 @@ export class NesPpu implements MemoryDevice {
       this.renderCurrentScanline();
     }
 
+    if (
+      !this.sprite0Hit &&
+      this.scanline === this.pendingSprite0HitScanline &&
+      this.dot >= this.pendingSprite0HitDot
+    ) {
+      this.sprite0Hit = true;
+      this.registers[2] |= PPUSTATUS_SPRITE0_HIT;
+    }
+
     this.dot++;
+
     if (this.dot >= DOTS_PER_SCANLINE) {
       this.dot = 0;
       this.scanline++;
 
       if (this.scanline === VBLANK_SCANLINE) {
         this.registers[2] |= PPUSTATUS_VBLANK;
+
         if (this.isNmiEnabled()) {
           this.nmiRequested = true;
         }
@@ -164,6 +235,8 @@ export class NesPpu implements MemoryDevice {
       if (this.scanline === PRE_RENDER_SCANLINE) {
         this.registers[2] &= ~(PPUSTATUS_VBLANK | PPUSTATUS_SPRITE0_HIT | PPUSTATUS_SPRITE_OVERFLOW);
         this.sprite0Hit = false;
+        this.pendingSprite0HitScanline = -1;
+        this.pendingSprite0HitDot = -1;
       }
 
       if (this.scanline >= SCANLINES_PER_FRAME) {
@@ -181,6 +254,7 @@ export class NesPpu implements MemoryDevice {
     if (!this.frameReady) {
       return false;
     }
+
     this.frameReady = false;
     return true;
   }
@@ -190,13 +264,16 @@ export class NesPpu implements MemoryDevice {
     this.vram.fill(0);
     this.oam.fill(0);
     this.palette.fill(0);
+
     this.scanline = 0;
     this.dot = 0;
     this.ppuCycle = 0;
     this.frameReady = false;
     this.nmiRequested = false;
     this.sprite0Hit = false;
+
     this.framebuffer.fill(0);
+
     this.addressLatch = false;
     this.scrollLatch = false;
     this.scrollX = 0;
@@ -204,6 +281,9 @@ export class NesPpu implements MemoryDevice {
     this.ppuAddr = 0;
     this.vramReadBuffer = 0;
     this.oamAddress = 0;
+
+    this.pendingSprite0HitScanline = -1;
+    this.pendingSprite0HitDot = -1;
   }
 
   private renderCurrentScanline(): void {
@@ -216,11 +296,26 @@ export class NesPpu implements MemoryDevice {
       chrRead: this.chrRead,
       mirroring: this.mirroring,
       sprite0Hit: false,
+      sprite0HitScanline: -1,
+      sprite0HitDot: -1,
     };
 
     renderScanline(state, this.scanline, this.framebuffer, this.scrollX, this.scrollY);
+
+    if (
+      state.sprite0Hit &&
+      state.sprite0HitScanline === this.scanline
+    ) {
+      this.pendingSprite0HitScanline = state.sprite0HitScanline;
+      this.pendingSprite0HitDot = state.sprite0HitDot;
+      
+    }
     if (state.sprite0Hit) {
-      this.sprite0Hit = true;
+      console.log(
+        "sprite0 hit at",
+        state.sprite0HitScanline,
+        state.sprite0HitDot
+      );
     }
   }
 
@@ -231,53 +326,64 @@ export class NesPpu implements MemoryDevice {
   private mirrorNametableAddress(address: number): number {
     const offset = address & 0x03ff;
     const table = (address >> 10) & 0x03;
+
     if (this.mirroring === "horizontal") {
       const mapped = table < 2 ? 0 : 1;
       return mapped * 0x400 + offset;
     }
+
     const mapped = table & 1;
     return mapped * 0x400 + offset;
   }
 
   private readVramInternal(address: number): number {
     const addr = address & 0x3fff;
+
     if (addr >= 0x3f00) {
       const paletteIndex = this.normalizePaletteIndex(addr);
       return this.palette[paletteIndex] & 0x3f;
     }
+
     if (addr < 0x2000) {
       return this.chrRead(addr);
     }
+
     const mirrored = this.mirrorNametableAddress(addr);
     return this.vram[mirrored] ?? 0;
   }
 
   private writeVramInternal(address: number, value: number): void {
     const addr = address & 0x3fff;
+
     if (addr >= 0x3f00) {
       const paletteIndex = this.normalizePaletteIndex(addr);
       this.palette[paletteIndex] = value & 0x3f;
       return;
     }
+
     if (addr < 0x2000) {
       this.chrWrite(addr, value & 0xff);
       return;
     }
+
     const mirrored = this.mirrorNametableAddress(addr);
     this.vram[mirrored] = value & 0xff;
   }
 
   private normalizePaletteIndex(address: number): number {
     const paletteIndex = address & 0x1f;
+
     if (paletteIndex >= 0x10 && (paletteIndex & 0x03) === 0) {
       return paletteIndex - 0x10;
     }
+
     return paletteIndex;
   }
 
   private readPpuData(address: number): number {
     const addr = address & 0x3fff;
     const value = this.readVramInternal(addr);
+
     if (addr >= 0x3f00) {
       this.vramReadBuffer = this.readVramInternal(addr - 0x1000);
       return value;
@@ -299,8 +405,12 @@ export function renderFullFrame(ppu: NesPpu): void {
     chrRead: ppu.chrRead,
     mirroring: ppu.mirroring,
     sprite0Hit: false,
+    sprite0HitScanline: -1,
+    sprite0HitDot: -1,
   };
+
   renderFrame(state, ppu.framebuffer);
+
   if (state.sprite0Hit) {
     ppu.sprite0Hit = true;
   }

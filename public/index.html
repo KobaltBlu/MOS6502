@@ -4,19 +4,125 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MOS6502 NES</title>
-  <style>
-    body { background: #111; color: #eee; font-family: sans-serif; text-align: center; }
-    canvas { image-rendering: pixelated; border: 2px solid #444; margin-top: 1rem; }
-    #status { margin: 1rem; }
-  </style>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <h1>NES Emulator</h1>
-  <p id="status">Loading...</p>
-  <input type="file" id="rom" accept=".nes" />
-  <br />
-  <canvas id="screen"></canvas>
-  <p>Keys: WASD/Arrows, Z/A, X/B, Enter/Start, R/Select</p>
+  <main id="app" class="emu-window">
+    <nav class="app-menu">
+      <div class="menu-group">
+        <button data-menu="file">File</button>
+        <button data-menu="emulation">Emulation</button>
+        <button data-menu="video">Video</button>
+        <button data-menu="input">Input</button>
+        <button data-menu="help">Help</button>
+      </div>
+    </nav>
+
+    <section class="toolbar">
+      <button id="choose-rom">Open ROM</button>
+      <button id="reset-emulator" disabled>Reset</button>
+      <button id="pause-emulator" disabled>Pause</button>
+
+      <label>
+        Scale
+        <select id="scale">
+          <option value="1">1x</option>
+          <option value="2">2x</option>
+          <option value="3" selected>3x</option>
+          <option value="4">4x</option>
+          <option value="5">5x</option>
+        </select>
+      </label>
+
+      <label>
+        Mode
+        <select id="scale-mode">
+          <option value="integer" selected>Integer Fit</option>
+          <option value="fit">Fit Window</option>
+          <option value="stretch">Stretch</option>
+        </select>
+      </label>
+
+      <label>
+        <input id="smoothing" type="checkbox" />
+        Smoothing
+      </label>
+
+      <button id="fullscreen">Fullscreen</button>
+    </section>
+
+    <section id="viewport" class="emu-viewport">
+      <canvas id="screen"></canvas>
+    </section>
+
+    <footer class="statusbar">
+      <span id="status">Loading...</span>
+      <span>ROM: <strong id="rom-name">None</strong></span>
+      <span>Mapper: <strong id="rom-mapper">—</strong></span>
+      <span>PRG: <strong id="rom-prg">—</strong></span>
+      <span>CHR: <strong id="rom-chr">—</strong></span>
+      <span>Screen: <strong id="screen-size">—</strong></span>
+    </footer>
+
+    <input id="rom" type="file" accept=".nes" hidden />
+
+    <dialog id="video-dialog">
+      <form method="dialog" class="dialog-panel">
+        <h2>Video Options</h2>
+
+        <label>
+          Scale Mode
+          <select id="video-dialog-scale-mode">
+            <option value="integer">Integer Fit</option>
+            <option value="fit">Fit Window</option>
+            <option value="stretch">Stretch</option>
+          </select>
+        </label>
+
+        <label>
+          Manual Scale
+          <select id="video-dialog-scale">
+            <option value="1">1x</option>
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+            <option value="5">5x</option>
+          </select>
+        </label>
+
+        <label>
+          <input id="video-dialog-smoothing" type="checkbox" />
+          Smooth image
+        </label>
+
+        <menu>
+          <button value="cancel">Close</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="input-dialog">
+      <form method="dialog" class="dialog-panel">
+        <h2>Control Bindings</h2>
+
+        <div class="bindings-grid">
+          <button type="button" data-bind="up">Up: ArrowUp / W</button>
+          <button type="button" data-bind="down">Down: ArrowDown / S</button>
+          <button type="button" data-bind="left">Left: ArrowLeft / A</button>
+          <button type="button" data-bind="right">Right: ArrowRight / D</button>
+          <button type="button" data-bind="a">A: Z / K</button>
+          <button type="button" data-bind="b">B: X / J</button>
+          <button type="button" data-bind="start">Start: Enter / T</button>
+          <button type="button" data-bind="select">Select: Shift / R</button>
+        </div>
+
+        <menu>
+          <button value="cancel">Close</button>
+        </menu>
+      </form>
+    </dialog>
+  </main>
+
   <script src="bundle.js"></script>
 </body>
 </html>

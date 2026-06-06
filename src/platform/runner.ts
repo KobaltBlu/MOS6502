@@ -28,8 +28,9 @@ export function runMachine(
   options: RunMachineOptions = {}
 ): void {
   const cpu = machine.cpu as R2A03;
-  machine.cpu.reset(machine.memoryMap);
+
   machine.reset();
+  machine.cpu.reset(machine.memoryMap);
   machine.running = true;
 
   if (host.id === "web" && isNESMachine(machine)) {
@@ -39,6 +40,7 @@ export function runMachine(
       stackPointer: `$${cpu.stackPointer.toString(16)}`,
       status: `$${cpu.status.toString(16)}`,
     });
+
     runNesWeb(machine, host, options.loadGeneration);
     return;
   }

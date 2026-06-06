@@ -1,44 +1,162 @@
 import { createMachine } from "../core/machine-factory";
 import { runMachine } from "../platform/runner";
 import { nesError, nesLog } from "../platform/nes-debug-log";
-import { WebHost } from "../platform/web/web-host";
+import { WebHost, type VideoScaleMode } from "../platform/web/web-host";
 import type { NESMachine } from "../machines/nes/machine";
+import type { NesControllerState } from "../platform/host";
 
-const canvas = document.getElementById("screen") as HTMLCanvasElement | null;
+const DEFAULT_SCALE = 3;
+
+const screenCanvas = document.getElementById("screen") as HTMLCanvasElement | null;
+const viewport = document.getElementById("viewport");
+
 const fileInput = document.getElementById("rom") as HTMLInputElement | null;
-const status = document.getElementById("status");
+const chooseRomButton = document.getElementById("choose-rom") as HTMLButtonElement | null;
+const resetButton = document.getElementById("reset-emulator") as HTMLButtonElement | null;
+const fullscreenButton = document.getElementById("fullscreen") as HTMLButtonElement | null;
 
-if (!canvas) {
+const scaleSelect = document.getElementById("scale") as HTMLSelectElement | null;
+const scaleModeSelect = document.getElementById("scale-mode") as HTMLSelectElement | null;
+const smoothingCheckbox = document.getElementById("smoothing") as HTMLInputElement | null;
+
+const videoDialog = document.getElementById("video-dialog") as HTMLDialogElement | null;
+const inputDialog = document.getElementById("input-dialog") as HTMLDialogElement | null;
+
+const videoDialogScale = document.getElementById("video-dialog-scale") as HTMLSelectElement | null;
+const videoDialogScaleMode = document.getElementById("video-dialog-scale-mode") as HTMLSelectElement | null;
+const videoDialogSmoothing = document.getElementById("video-dialog-smoothing") as HTMLInputElement | null;
+
+const status = document.getElementById("status");
+const app = document.getElementById("app") ?? document.body;
+
+const romName = document.getElementById("rom-name");
+const romMapper = document.getElementById("rom-mapper");
+const romPrg = document.getElementById("rom-prg");
+const romChr = document.getElementById("rom-chr");
+const screenSize = document.getElementById("screen-size");
+
+if (!screenCanvas) {
   throw new Error("Missing #screen canvas");
 }
+
+const canvas: HTMLCanvasElement = screenCanvas;
 
 if (!fileInput) {
   nesLog("init", "Warning: #rom file input not found — ROM loading disabled");
 }
 
-const host = new WebHost(canvas);
-const machine = createMachine("nes") as NESMachine;
-let loadGeneration = 0;
+const host = new WebHost(canvas, viewport);
+let machine = createMachine("nes") as NESMachine;
 
-function setStatus(text: string): void {
-  if (status) {
-    status.textContent = text;
+let loadGeneration = 0;
+let currentRomData: Uint8Array | null = null;
+let currentRomFileName = "";
+
+function setText(element: Element | null, text: string): void {
+  if (element) {
+    element.textContent = text;
   }
 }
 
-nesLog("init", "Web UI ready", {
-  canvas: `${canvas.width}x${canvas.height}`,
-  hasFileInput: Boolean(fileInput),
-});
+function setStatus(text: string): void {
+  setText(status, text);
+}
 
-fileInput?.addEventListener("change", async () => {
-  const file = fileInput.files?.[0];
-  if (!file) {
-    nesLog("load", "File picker closed with no selection");
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / 1024 / 1024).toFixed(2)} MiB`;
+  }
+
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`;
+  }
+
+  return `${bytes} B`;
+}
+
+function updateScreenSize(): void {
+  setText(screenSize, `${canvas.width}x${canvas.height}`);
+}
+
+function clearRomMeta(): void {
+  setText(romName, "None");
+  setText(romMapper, "—");
+  setText(romPrg, "—");
+  setText(romChr, "—");
+}
+
+function updateRomMeta(fileName: string): void {
+  const summary = machine.cartridge.getLoadSummary();
+
+  setText(romName, fileName);
+
+  if (!summary) {
+    setText(romMapper, "—");
+    setText(romPrg, "—");
+    setText(romChr, "—");
     return;
   }
 
+  setText(romMapper, String(summary.mapperId));
+  setText(romPrg, formatBytes(summary.prgSize));
+  setText(romChr, formatBytes(summary.chrSize));
+}
+
+function syncVideoUiToHost(): void {
+  const options = host.getVideoOptions();
+
+  if (scaleSelect) {
+    scaleSelect.value = String(options.scale);
+  }
+
+  if (scaleModeSelect) {
+    scaleModeSelect.value = options.scaleMode;
+  }
+
+  if (smoothingCheckbox) {
+    smoothingCheckbox.checked = options.smoothing;
+  }
+
+  if (videoDialogScale) {
+    videoDialogScale.value = String(options.scale);
+  }
+
+  if (videoDialogScaleMode) {
+    videoDialogScaleMode.value = options.scaleMode;
+  }
+
+  if (videoDialogSmoothing) {
+    videoDialogSmoothing.checked = options.smoothing;
+  }
+
+  updateScreenSize();
+}
+
+function applyVideoOptions(options?: {
+  scale?: number;
+  scaleMode?: VideoScaleMode;
+  smoothing?: boolean;
+}): void {
+  host.setVideoOptions({
+    scale: options?.scale ?? Number(scaleSelect?.value ?? DEFAULT_SCALE),
+    scaleMode: options?.scaleMode ?? ((scaleModeSelect?.value ?? "integer") as VideoScaleMode),
+    smoothing: options?.smoothing ?? Boolean(smoothingCheckbox?.checked),
+  });
+
+  syncVideoUiToHost();
+
+  nesLog("ui", "Video options changed", {
+    ...host.getVideoOptions(),
+    canvas: `${canvas.width}x${canvas.height}`,
+  });
+}
+
+async function loadRomFile(file: File): Promise<void> {
   const generation = ++loadGeneration;
+  currentRomFileName = file.name;
+
+  setStatus(`Loading ${file.name}...`);
+
   nesLog("load", "File selected", {
     name: file.name,
     size: file.size,
@@ -47,8 +165,11 @@ fileInput?.addEventListener("change", async () => {
   });
 
   let data: Uint8Array;
+
   try {
     data = new Uint8Array(await file.arrayBuffer());
+    currentRomData = data;
+
     nesLog("load", "File read into memory", {
       bytes: data.length,
       generation,
@@ -60,18 +181,271 @@ fileInput?.addEventListener("change", async () => {
   }
 
   try {
+    machine = createMachine("nes") as NESMachine;
     machine.loadProgram(data);
-    const summary = machine.cartridge.getLoadSummary();
+
+    updateRomMeta(file.name);
+
     nesLog("load", "ROM loaded into machine", {
       generation,
-      ...summary,
+      ...machine.cartridge.getLoadSummary(),
     });
+
     setStatus(`Loaded ${file.name}`);
-    runMachine(machine, host, { loadGeneration: generation });
+    resetButton?.removeAttribute("disabled");
+
+    canvas.focus();
+
+    runMachine(machine, host, {
+      loadGeneration: generation,
+    });
   } catch (error) {
     nesError("load", "ROM load failed", error);
-    setStatus(String(error));
+    setStatus(`ROM load failed: ${String(error)}`);
+    clearRomMeta();
   }
+}
+
+function resetEmulator(): void {
+  if (!currentRomData) {
+    setStatus("No ROM loaded");
+    return;
+  }
+
+  const generation = ++loadGeneration;
+
+  try {
+    machine = createMachine("nes") as NESMachine;
+    machine.loadProgram(currentRomData);
+
+    updateRomMeta(currentRomFileName);
+
+    setStatus(`Reset ${currentRomFileName}`);
+    canvas.focus();
+
+    runMachine(machine, host, {
+      loadGeneration: generation,
+    });
+  } catch (error) {
+    nesError("reset", "Reset failed", error);
+    setStatus(`Reset failed: ${String(error)}`);
+  }
+}
+
+function getBindingLabel(button: keyof NesControllerState, codes: string[]): string {
+  return `${button.toUpperCase()}: ${codes.join(" / ")}`;
+}
+
+function refreshBindingButtons(): void {
+  const bindings = host.getBindings();
+
+  document.querySelectorAll<HTMLButtonElement>("[data-bind]").forEach((button) => {
+    const nesButton = button.dataset.bind as keyof NesControllerState | undefined;
+
+    if (!nesButton) {
+      return;
+    }
+
+    button.textContent = getBindingLabel(nesButton, bindings[nesButton]);
+  });
+}
+
+function installControlBindingUi(): void {
+  refreshBindingButtons();
+
+  document.querySelectorAll<HTMLButtonElement>("[data-bind]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nesButton = button.dataset.bind as keyof NesControllerState | undefined;
+
+      if (!nesButton) {
+        return;
+      }
+
+      button.textContent = `Press a key for ${nesButton.toUpperCase()}...`;
+
+      const onKeyDown = (event: KeyboardEvent): void => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        host.setBindings({
+          [nesButton]: [event.code],
+        });
+
+        refreshBindingButtons();
+
+        window.removeEventListener("keydown", onKeyDown, true);
+      };
+
+      window.addEventListener("keydown", onKeyDown, true);
+    });
+  });
+}
+
+function installMenuUi(): void {
+  document.querySelector('[data-menu="file"]')?.addEventListener("click", () => {
+    fileInput?.click();
+  });
+
+  document.querySelector('[data-menu="emulation"]')?.addEventListener("click", () => {
+    if (currentRomData) {
+      resetEmulator();
+    }
+  });
+
+  document.querySelector('[data-menu="video"]')?.addEventListener("click", () => {
+    syncVideoUiToHost();
+    videoDialog?.showModal();
+  });
+
+  document.querySelector('[data-menu="input"]')?.addEventListener("click", () => {
+    refreshBindingButtons();
+    inputDialog?.showModal();
+  });
+
+  document.querySelector('[data-menu="help"]')?.addEventListener("click", () => {
+    setStatus("Controls: Arrows/WASD, Z/K = A, X/J = B, Enter = Start, Shift/R = Select");
+  });
+}
+
+function installVideoUi(): void {
+  scaleSelect?.addEventListener("change", () => {
+    applyVideoOptions({
+      scale: Number(scaleSelect.value),
+    });
+  });
+
+  scaleModeSelect?.addEventListener("change", () => {
+    applyVideoOptions({
+      scaleMode: scaleModeSelect.value as VideoScaleMode,
+    });
+  });
+
+  smoothingCheckbox?.addEventListener("change", () => {
+    applyVideoOptions({
+      smoothing: smoothingCheckbox.checked,
+    });
+  });
+
+  videoDialogScale?.addEventListener("change", () => {
+    applyVideoOptions({
+      scale: Number(videoDialogScale.value),
+    });
+  });
+
+  videoDialogScaleMode?.addEventListener("change", () => {
+    applyVideoOptions({
+      scaleMode: videoDialogScaleMode.value as VideoScaleMode,
+    });
+  });
+
+  videoDialogSmoothing?.addEventListener("change", () => {
+    applyVideoOptions({
+      smoothing: videoDialogSmoothing.checked,
+    });
+  });
+
+  window.addEventListener("resize", () => {
+    updateScreenSize();
+  });
+}
+
+function installFileUi(): void {
+  chooseRomButton?.addEventListener("click", () => {
+    fileInput?.click();
+  });
+
+  resetButton?.addEventListener("click", () => {
+    resetEmulator();
+  });
+
+  fileInput?.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+      nesLog("load", "File picker closed with no selection");
+      return;
+    }
+
+    await loadRomFile(file);
+    fileInput.value = "";
+  });
+
+  document.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    app.classList.add("nes-dragging");
+  });
+
+  document.addEventListener("dragleave", (event) => {
+    if (event.relatedTarget === null) {
+      app.classList.remove("nes-dragging");
+    }
+  });
+
+  document.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    app.classList.remove("nes-dragging");
+
+    const file = event.dataTransfer?.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    await loadRomFile(file);
+  });
+}
+
+function installFullscreenUi(): void {
+  fullscreenButton?.addEventListener("click", async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await (viewport ?? canvas).requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      nesError("ui", "Fullscreen failed", error);
+      setStatus(`Fullscreen failed: ${String(error)}`);
+    }
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    if (fullscreenButton) {
+      fullscreenButton.textContent = document.fullscreenElement
+        ? "Exit Fullscreen"
+        : "Fullscreen";
+    }
+
+    updateScreenSize();
+  });
+}
+
+function installUi(): void {
+  canvas.tabIndex = 0;
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute("aria-label", "NES screen");
+
+  installMenuUi();
+  installVideoUi();
+  installFileUi();
+  installFullscreenUi();
+  installControlBindingUi();
+
+  host.setVideoOptions({
+    scale: DEFAULT_SCALE,
+    scaleMode: "integer",
+    smoothing: false,
+  });
+
+  syncVideoUiToHost();
+}
+
+installUi();
+clearRomMeta();
+
+nesLog("init", "Web UI ready", {
+  canvas: `${canvas.width}x${canvas.height}`,
+  hasFileInput: Boolean(fileInput),
 });
 
-setStatus("Drop or choose a .nes ROM file");
+setStatus("Open or drop a .nes ROM file");
