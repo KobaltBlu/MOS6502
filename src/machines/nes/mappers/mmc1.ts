@@ -4,6 +4,7 @@ export class Mmc1Mapper implements IMapper {
   readonly id = 1;
   private prgRom: Uint8Array;
   private chrRom: Uint8Array;
+  private chrRam: boolean;
   private defaultMirroring: MirroringMode;
 
   private shiftRegister = 0x10;
@@ -15,6 +16,7 @@ export class Mmc1Mapper implements IMapper {
   constructor(config: MapperConfig) {
     this.prgRom = config.prgRom;
     this.chrRom = config.chrRom;
+    this.chrRam = config.chrRam;
     this.defaultMirroring = config.mirroring;
   }
 
@@ -93,7 +95,11 @@ export class Mmc1Mapper implements IMapper {
     return this.chrRom[bank * bankSize + (address & 0x1fff)] ?? 0;
   }
 
-  writeChr(_address: number, _value: number): void {}
+  writeChr(address: number, value: number): void {
+    if (this.chrRam) {
+      this.chrRom[address & (this.chrRom.length - 1)] = value & 0xff;
+    }
+  }
 
   getMirroring(): MirroringMode {
     switch (this.control & 0x03) {

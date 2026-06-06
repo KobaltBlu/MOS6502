@@ -4,12 +4,14 @@ export class UxromMapper implements IMapper {
   readonly id = 2;
   private prgRom: Uint8Array;
   private chrRom: Uint8Array;
+  private chrRam: boolean;
   private mirroring: MirroringMode;
   private prgBank = 0;
 
   constructor(config: MapperConfig) {
     this.prgRom = config.prgRom;
     this.chrRom = config.chrRom;
+    this.chrRam = config.chrRam;
     this.mirroring = config.mirroring;
   }
 
@@ -35,7 +37,7 @@ export class UxromMapper implements IMapper {
   }
 
   writeChr(address: number, value: number): void {
-    if (this.chrRom.length > 0) {
+    if (this.chrRam) {
       this.chrRom[address & (this.chrRom.length - 1)] = value & 0xff;
     }
   }

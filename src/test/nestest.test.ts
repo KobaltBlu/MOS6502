@@ -136,4 +136,65 @@ describe("6502 opcode smoke tests", () => {
     expect(cpu.programCounter).toBe(0x7856);
     expect(cpu.status & cpu.FLAG_I).toBe(cpu.FLAG_I);
   });
+
+  it("branch timing only adds a cycle when the high address byte changes", () => {
+    const { cpu, map } = createCpuTestBed([]);
+    cpu.status = cpu.FLAG_Z;
+
+    cpu.programCounter = 0xf1fe;
+    expect(cpu.BEQ(map, 0x01)).toBe(3);
+    expect(cpu.programCounter).toBe(0xf1ff);
+
+    cpu.programCounter = 0xf1ff;
+    expect(cpu.BEQ(map, 0x01)).toBe(4);
+    expect(cpu.programCounter).toBe(0xf200);
+  });
+
+  it("indexed load timing compares high address bytes for page crossing", () => {
+    const { cpu, map, ram } = createCpuTestBed([]);
+    ram.writeByte(0x11ff, 0x7a);
+    ram.writeByte(0x1200, 0x7b);
+
+    cpu.regX = 1;
+    expect(cpu.LDA_ABS_X(map, 0x11fe)).toBe(4);
+    expect(cpu.accumulator).toBe(0x7a);
+
+    expect(cpu.LDA_ABS_X(map, 0x11ff)).toBe(5);
+    expect(cpu.accumulator).toBe(0x7b);
+  });
+
+  it("zero-page indexed loads and decrements wrap within zero page", () => {
+    const { cpu, map, ram } = createCpuTestBed([]);
+    ram.writeByte(0x0000, 0x80);
+    cpu.regX = 1;
+    cpu.regY = 1;
+
+    expect(cpu.LDY_ZP_X(map, 0xff)).toBe(4);
+    expect(cpu.regY).toBe(0x80);
+
+    expect(cpu.DEC_ZP_X(map, 0xff)).toBe(6);
+    expect(ram.readByte(0x0000)).toBe(0x7f);
+  });
+
+  it("JMP indirect emulates the 6502 page-wrap bug", () => {
+    const { cpu, map, ram } = createCpuTestBed([]);
+    ram.writeByte(0x02ff, 0x34);
+    ram.writeByte(0x0200, 0x12);
+    ram.writeByte(0x0300, 0xab);
+
+    expect(cpu.JMP_I(map, 0x02ff)).toBe(5);
+    expect(cpu.programCounter).toBe(0x1234);
+  });
+
+  it("reset disables IRQs and TXS does not change flags", () => {
+    const { cpu, map } = createCpuTestBed([]);
+    cpu.reset(map);
+    expect(cpu.status & cpu.FLAG_I).toBe(cpu.FLAG_I);
+
+    cpu.status = cpu.FLAG_Z;
+    cpu.regX = 0x80;
+    expect(cpu.TXS(map, 0)).toBe(2);
+    expect(cpu.stackPointer).toBe(0x80);
+    expect(cpu.status).toBe(cpu.FLAG_Z);
+  });
 });

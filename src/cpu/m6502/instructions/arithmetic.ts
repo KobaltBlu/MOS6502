@@ -1,8 +1,11 @@
 import type { MemoryMap } from "../../../memory/memory-map";
-import { PAGE_SIZE } from "../../../core/constants";
 import { setZeroNegative } from "../../flags";
 import { IRQ_VECTOR } from "../../constants";
 import type { M6502 } from "../m6502";
+
+function pageCrossed(base: number, offset: number): boolean {
+  return (base & 0xff00) !== (offset & 0xff00);
+}
 
 function compare(cpu: M6502, register: number, value: number): void {
   const result = (register - value) & 0xff;
@@ -99,7 +102,7 @@ export const arithmeticInstructions = {
   ADC_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
     doAdc(this, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -107,7 +110,7 @@ export const arithmeticInstructions = {
   ADC_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
     doAdc(this, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -147,7 +150,7 @@ export const arithmeticInstructions = {
   SBC_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
     doSbc(this, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -155,7 +158,7 @@ export const arithmeticInstructions = {
   SBC_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
     doSbc(this, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -195,7 +198,7 @@ export const arithmeticInstructions = {
   AND_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
     applyLogic(this, memory.readByte(offset), (a, b) => a & b);
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -203,7 +206,7 @@ export const arithmeticInstructions = {
   AND_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
     applyLogic(this, memory.readByte(offset), (a, b) => a & b);
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -243,7 +246,7 @@ export const arithmeticInstructions = {
   ORA_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
     applyLogic(this, memory.readByte(offset), (a, b) => a | b);
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -251,7 +254,7 @@ export const arithmeticInstructions = {
   ORA_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
     applyLogic(this, memory.readByte(offset), (a, b) => a | b);
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -291,7 +294,7 @@ export const arithmeticInstructions = {
   CMP_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
     compare(this, this.accumulator, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -299,7 +302,7 @@ export const arithmeticInstructions = {
   CMP_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
     compare(this, this.accumulator, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;

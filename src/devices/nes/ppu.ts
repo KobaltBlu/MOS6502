@@ -14,6 +14,7 @@ import {
 import { renderFrame, renderScanline, type PpuRenderState } from "./render";
 
 export type ChrReadCallback = (address: number) => number;
+export type ChrWriteCallback = (address: number, value: number) => void;
 
 export class NesPpu implements MemoryDevice {
   registers = new Uint8Array(8);
@@ -30,6 +31,7 @@ export class NesPpu implements MemoryDevice {
 
   framebuffer = new Uint32Array(256 * 240);
   chrRead: ChrReadCallback = () => 0;
+  chrWrite: ChrWriteCallback = () => {};
   mirroring: "horizontal" | "vertical" = "horizontal";
 
   private baseAddress = PPU_REG_BASE;
@@ -39,6 +41,7 @@ export class NesPpu implements MemoryDevice {
   private scrollX = 0;
   private scrollY = 0;
   private ppuAddr = 0;
+  private vramReadBuffer = 0;
 
   readByte(address: number): number {
     const index = (address & 0x2007) - this.baseAddress;
@@ -48,22 +51,20 @@ export class NesPpu implements MemoryDevice {
 
     switch (index) {
       case 2: {
-        let status = this.registers[2] & 0x1f;
+        let status = this.registers[2] & (0x1f | PPUSTATUS_VBLANK | PPUSTATUS_SPRITE_OVERFLOW);
         if (this.sprite0Hit) {
           status |= PPUSTATUS_SPRITE0_HIT;
         }
-        if (this.isInVblank()) {
-          status |= PPUSTATUS_VBLANK;
-        }
-        this.registers[2] &= ~(PPUSTATUS_VBLANK | PPUSTATUS_SPRITE0_HIT | PPUSTATUS_SPRITE_OVERFLOW);
-        this.sprite0Hit = false;
+        this.registers[2] &= ~PPUSTATUS_VBLANK;
         this.addressLatch = false;
+        this.scrollLatch = false;
         return status;
       }
       case 4:
         return this.oam[this.oamAddress++ & 0xff];
       case 7: {
-        const value = this.readVramInternal(this.ppuAddr);
+        const addr = this.ppuAddr;
+        const value = this.readPpuData(addr);
         this.ppuAddr = (this.ppuAddr + this.vramIncrement()) & 0x3fff;
         return value;
       }
@@ -121,6 +122,10 @@ export class NesPpu implements MemoryDevice {
     this.oam[index & 0xff] = value & 0xff;
   }
 
+  writeOamDmaByte(offset: number, value: number): void {
+    this.oam[(this.oamAddress + offset) & 0xff] = value & 0xff;
+  }
+
   isNmiEnabled(): boolean {
     return (this.registers[0] & PPUCTRL_NMI_ENABLE) !== 0;
   }
@@ -154,6 +159,11 @@ export class NesPpu implements MemoryDevice {
         if (this.isNmiEnabled()) {
           this.nmiRequested = true;
         }
+      }
+
+      if (this.scanline === PRE_RENDER_SCANLINE) {
+        this.registers[2] &= ~(PPUSTATUS_VBLANK | PPUSTATUS_SPRITE0_HIT | PPUSTATUS_SPRITE_OVERFLOW);
+        this.sprite0Hit = false;
       }
 
       if (this.scanline >= SCANLINES_PER_FRAME) {
@@ -192,6 +202,7 @@ export class NesPpu implements MemoryDevice {
     this.scrollX = 0;
     this.scrollY = 0;
     this.ppuAddr = 0;
+    this.vramReadBuffer = 0;
     this.oamAddress = 0;
   }
 
@@ -221,7 +232,7 @@ export class NesPpu implements MemoryDevice {
     const offset = address & 0x03ff;
     const table = (address >> 10) & 0x03;
     if (this.mirroring === "horizontal") {
-      const mapped = table < 2 ? 0 : 2;
+      const mapped = table < 2 ? 0 : 1;
       return mapped * 0x400 + offset;
     }
     const mapped = table & 1;
@@ -231,7 +242,7 @@ export class NesPpu implements MemoryDevice {
   private readVramInternal(address: number): number {
     const addr = address & 0x3fff;
     if (addr >= 0x3f00) {
-      const paletteIndex = addr & 0x1f;
+      const paletteIndex = this.normalizePaletteIndex(addr);
       return this.palette[paletteIndex] & 0x3f;
     }
     if (addr < 0x2000) {
@@ -244,18 +255,37 @@ export class NesPpu implements MemoryDevice {
   private writeVramInternal(address: number, value: number): void {
     const addr = address & 0x3fff;
     if (addr >= 0x3f00) {
-      const paletteIndex = addr & 0x1f;
+      const paletteIndex = this.normalizePaletteIndex(addr);
       this.palette[paletteIndex] = value & 0x3f;
-      if (paletteIndex >= 0x10 && (paletteIndex & 0x03) === 0) {
-        this.palette[paletteIndex - 0x10] = value & 0x3f;
-      }
       return;
     }
     if (addr < 0x2000) {
+      this.chrWrite(addr, value & 0xff);
       return;
     }
     const mirrored = this.mirrorNametableAddress(addr);
     this.vram[mirrored] = value & 0xff;
+  }
+
+  private normalizePaletteIndex(address: number): number {
+    const paletteIndex = address & 0x1f;
+    if (paletteIndex >= 0x10 && (paletteIndex & 0x03) === 0) {
+      return paletteIndex - 0x10;
+    }
+    return paletteIndex;
+  }
+
+  private readPpuData(address: number): number {
+    const addr = address & 0x3fff;
+    const value = this.readVramInternal(addr);
+    if (addr >= 0x3f00) {
+      this.vramReadBuffer = this.readVramInternal(addr - 0x1000);
+      return value;
+    }
+
+    const buffered = this.vramReadBuffer;
+    this.vramReadBuffer = value;
+    return buffered;
   }
 }
 

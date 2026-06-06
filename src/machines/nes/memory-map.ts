@@ -69,6 +69,7 @@ export function buildNesMemoryMap(): NesHardware {
   const dma = new OamDma();
 
   ppu.chrRead = (address) => cartridge.readChr(address);
+  ppu.chrWrite = (address, value) => cartridge.writeChr(address, value);
 
   ram.baseAddress = 0;
   memoryMap.addRegion(
@@ -91,5 +92,6 @@ export function buildNesMemoryMap(): NesHardware {
 
 export function wireCartridgeToPpu(cartridge: Cartridge, ppu: NesPpu): void {
   ppu.chrRead = (address) => cartridge.readChr(address);
+  ppu.chrWrite = (address, value) => cartridge.writeChr(address, value);
   ppu.mirroring = cartridge.getMirroring();
 }

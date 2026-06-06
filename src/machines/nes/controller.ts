@@ -39,6 +39,10 @@ export class NesController implements MemoryDevice {
   }
 
   private readPort(buttons: boolean[], indexKey: "shiftIndex1" | "shiftIndex2"): number {
+    if (this.strobe) {
+      return buttons[0] ? 1 : 0;
+    }
+
     const shiftIndex = this[indexKey];
     if (shiftIndex >= 8) {
       return 1;

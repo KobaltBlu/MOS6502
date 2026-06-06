@@ -62,6 +62,14 @@ describe("iNES loader", () => {
     expect(cart.mapperId).toBe(1);
   });
 
+  it("allocates writable CHR-RAM when a ROM has no CHR payload", () => {
+    const cart = new Cartridge();
+    cart.loadINES(buildINES({ chrUnits: 0 }));
+
+    cart.writeChr(0x0123, 0x7e);
+    expect(cart.readChr(0x0123)).toBe(0x7e);
+  });
+
   it("rejects unsupported mappers", () => {
     const cart = new Cartridge();
     expect(() => cart.loadINES(buildINES({ mapper: 9 }))).toThrow(INESParseError);

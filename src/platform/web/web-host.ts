@@ -1,5 +1,6 @@
 import type { IHost, NesControllerState } from "../host";
 import { EMPTY_CONTROLLER } from "../host";
+import { SAMPLE_RATE } from "../../machines/nes/apu";
 
 export class WebHost implements IHost {
   readonly id = "web" as const;
@@ -8,6 +9,7 @@ export class WebHost implements IHost {
   private imageData: ImageData;
   private keys = new Set<string>();
   private audioContext: AudioContext | null = null;
+  private nextAudioTime = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -56,11 +58,17 @@ export class WebHost implements IHost {
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
     }
-    const buffer = this.audioContext.createBuffer(1, samples.length, 44100);
+    if (this.audioContext.state === "suspended") {
+      void this.audioContext.resume();
+    }
+
+    const buffer = this.audioContext.createBuffer(1, samples.length, SAMPLE_RATE);
     buffer.copyToChannel(samples, 0);
     const source = this.audioContext.createBufferSource();
     source.buffer = buffer;
     source.connect(this.audioContext.destination);
-    source.start();
+    this.nextAudioTime = Math.max(this.nextAudioTime, this.audioContext.currentTime + 0.02);
+    source.start(this.nextAudioTime);
+    this.nextAudioTime += samples.length / SAMPLE_RATE;
   }
 }

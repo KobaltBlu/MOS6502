@@ -53,6 +53,7 @@ export class NESMachine extends MachineBase implements IMachine {
     this.cartridge.loadINES(data);
     this.ppu.mirroring = this.cartridge.getMirroring();
     this.ppu.chrRead = (address) => this.cartridge.readChr(address);
+    this.ppu.chrWrite = (address, value) => this.cartridge.writeChr(address, value);
     const chrSample = this.cartridge.readChr(0);
     const prgSample = this.cartridge.readByte(0x8000);
     nesLog("machine", "PPU wired to cartridge", {

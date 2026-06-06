@@ -70,6 +70,7 @@ export class M6502 extends CPU {
     this.data.fill(0);
     this.programCounter = memory.readShortLE(RESET_VECTOR);
     this.stackPointer = STACK_RESET;
+    this.status = this.FLAG_I | 0x20;
     this.nmiPending = false;
     this.irqLine = false;
   }

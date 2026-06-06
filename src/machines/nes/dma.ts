@@ -10,7 +10,7 @@ export class OamDma {
   trigger(page: number, memoryMap: MemoryMap, ppu: NesPpu): void {
     const base = (page & 0xff) << 8;
     for (let i = 0; i < 256; i++) {
-      ppu.writeOamByte(i, memoryMap.readByte(base + i));
+      ppu.writeOamDmaByte(i, memoryMap.readByte(base + i));
     }
     this.stallCycles = OAM_DMA_STALL_CYCLES;
   }

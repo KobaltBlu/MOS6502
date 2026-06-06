@@ -1,6 +1,9 @@
 import type { MemoryMap } from '../../../memory/memory-map';
-import { PAGE_SIZE } from '../../../core/constants';
 import { setZeroNegative } from '../../flags';
+
+function pageCrossed(base: number, offset: number): boolean {
+  return (base & 0xff00) !== (offset & 0xff00);
+}
 
 function applyEor(cpu: { accumulator: number; status: number; FLAG_Z: number; FLAG_N: number }, value: number): void {
   cpu.accumulator ^= value;
@@ -27,7 +30,7 @@ export const shiftInstructions = {
   EOR_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
     applyEor(this, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -35,7 +38,7 @@ export const shiftInstructions = {
   EOR_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
     applyEor(this, memory.readByte(offset));
-    if (address % PAGE_SIZE !== offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;

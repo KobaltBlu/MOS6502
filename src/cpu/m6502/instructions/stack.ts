@@ -29,7 +29,10 @@ export const stackInstructions = {
     return 3;
   },
   JMP_I(memory: MemoryMap, address: number): number {
-    this.programCounter = memory.readShortLE(address);
+    const low = memory.readByte(address);
+    const highAddress = (address & 0xff00) | ((address + 1) & 0x00ff);
+    const high = memory.readByte(highAddress);
+    this.programCounter = low | (high << 8);
     return 5;
   },
   JSR(memory: MemoryMap, address: number): number {

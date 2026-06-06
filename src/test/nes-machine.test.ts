@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { NESMachine } from "../machines/nes/machine";
-import { CPU_CYCLES_PER_FRAME_NTSC } from "../machines/nes/constants";
+import {
+  CPU_CYCLES_PER_FRAME_NTSC,
+  PPU_CYCLES_PER_CPU,
+  PPU_CYCLES_PER_FRAME_NTSC,
+} from "../machines/nes/constants";
+import { OAM_DMA_STALL_CYCLES } from "../machines/nes/dma";
 
 describe("NESMachine", () => {
   it("preserves 3:1 PPU clock ratio when stepping CPU cycles", () => {
@@ -17,6 +22,19 @@ describe("NESMachine", () => {
     const machine = new NESMachine();
     machine.stepFrame();
     expect(machine.getMasterCycle()).toBe(CPU_CYCLES_PER_FRAME_NTSC);
+  });
+
+  it("counts OAM DMA stalls in CPU cycles during stepFrame", () => {
+    const machine = new NESMachine();
+    machine.dma.stallCycles = OAM_DMA_STALL_CYCLES;
+    const cpuClock = vi.spyOn(machine.cpu, "clock");
+    const ppuCycles = Math.floor((PPU_CYCLES_PER_FRAME_NTSC + PPU_CYCLES_PER_CPU - 1) / PPU_CYCLES_PER_CPU);
+
+    machine.stepFrame();
+
+    expect(cpuClock).toHaveBeenCalledTimes(ppuCycles - OAM_DMA_STALL_CYCLES);
+    expect(machine.dma.isStalled()).toBe(false);
+    cpuClock.mockRestore();
   });
 
   it("loads iNES programs via loadProgram", () => {

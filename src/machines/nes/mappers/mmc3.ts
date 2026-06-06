@@ -29,9 +29,9 @@ export class Mmc3Mapper implements IMapper {
     if (address < 0xa000) {
       bank = this.prgMode ? secondLast : this.bankData[6] % prgBanks;
     } else if (address < 0xc000) {
-      bank = this.prgMode ? this.bankData[6] % prgBanks : secondLast;
-    } else if (address < 0xe000) {
       bank = this.bankData[7] % prgBanks;
+    } else if (address < 0xe000) {
+      bank = this.prgMode ? this.bankData[6] % prgBanks : secondLast;
     } else {
       bank = lastBank;
     }
@@ -49,15 +49,14 @@ export class Mmc3Mapper implements IMapper {
         this.bankData[this.bankSelect & 0x07] = value;
       } else {
         this.bankSelect = value;
+        this.prgMode = (value & 0x40) !== 0;
+        this.chrMode = (value & 0x80) !== 0;
       }
       return;
     }
 
     if (address < 0xc000) {
-      if (address & 0x0001) {
-        this.prgMode = (value & 0x40) !== 0;
-        this.chrMode = (value & 0x80) !== 0;
-      } else {
+      if ((address & 0x0001) === 0) {
         this.mirroring = value & 0x01 ? "horizontal" : "vertical";
       }
       return;
@@ -70,17 +69,34 @@ export class Mmc3Mapper implements IMapper {
     const bankSize = 0x0400;
     const chrBanks = Math.max(1, this.chrRom.length / bankSize);
     const slot = (address >> 10) & 0x07;
-    let bankIndex: number;
+    let bank: number;
 
     if (this.chrMode) {
-      const map = [0, 2, 4, 5, 6, 7, 0, 1];
-      bankIndex = map[slot];
+      const banks = [
+        this.bankData[2],
+        this.bankData[3],
+        this.bankData[4],
+        this.bankData[5],
+        this.bankData[0] & 0xfe,
+        this.bankData[0] | 0x01,
+        this.bankData[1] & 0xfe,
+        this.bankData[1] | 0x01,
+      ];
+      bank = banks[slot] % chrBanks;
     } else {
-      const map = [0, 1, 2, 3, 4, 5, 6, 7];
-      bankIndex = map[slot];
+      const banks = [
+        this.bankData[0] & 0xfe,
+        this.bankData[0] | 0x01,
+        this.bankData[1] & 0xfe,
+        this.bankData[1] | 0x01,
+        this.bankData[2],
+        this.bankData[3],
+        this.bankData[4],
+        this.bankData[5],
+      ];
+      bank = banks[slot] % chrBanks;
     }
 
-    const bank = this.bankData[bankIndex] % chrBanks;
     return this.chrRom[bank * bankSize + (address & 0x03ff)] ?? 0;
   }
 

@@ -1,6 +1,9 @@
 import type { MemoryMap } from "../../../memory/memory-map";
-import { PAGE_SIZE } from "../../../core/constants";
 import { setZeroNegative } from "../../flags";
+
+function pageCrossed(base: number, offset: number): boolean {
+  return (base & 0xff00) !== (offset & 0xff00);
+}
 
 export const loadInstructions = {
   LDA(memory: MemoryMap, address: number): number {
@@ -17,7 +20,7 @@ export const loadInstructions = {
     const offset = address + this.regX;
     this.accumulator = memory.readByte(offset);
     setZeroNegative(this, this.accumulator);
-    if (address % PAGE_SIZE != offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -26,7 +29,7 @@ export const loadInstructions = {
     const offset = address + this.regY;
     this.accumulator = memory.readByte(offset);
     setZeroNegative(this, this.accumulator);
-    if (address % PAGE_SIZE != offset % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -71,9 +74,10 @@ export const loadInstructions = {
     return 4;
   },
   LDX_ABS_Y(memory: MemoryMap, address: number): number {
-    this.regX = memory.readByte(address + this.regY);
+    const offset = address + this.regY;
+    this.regX = memory.readByte(offset);
     setZeroNegative(this, this.regX);
-    if (address % PAGE_SIZE != (address + this.regY) % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -84,7 +88,7 @@ export const loadInstructions = {
     return 3;
   },
   LDX_ZP_Y(memory: MemoryMap, address: number): number {
-    this.regX = memory.readByte(address + this.regY);
+    this.regX = memory.readByte((address + this.regY) & 0xff);
     setZeroNegative(this, this.regX);
     return 4;
   },
@@ -99,9 +103,10 @@ export const loadInstructions = {
     return 4;
   },
   LDY_ABS_X(memory: MemoryMap, address: number): number {
-    this.regY = memory.readByte(address + this.regX);
+    const offset = address + this.regX;
+    this.regY = memory.readByte(offset);
     setZeroNegative(this, this.regY);
-    if (address % PAGE_SIZE != (address + this.regX) % PAGE_SIZE) {
+    if (pageCrossed(address, offset)) {
       return 5;
     }
     return 4;
@@ -112,7 +117,7 @@ export const loadInstructions = {
     return 3;
   },
   LDY_ZP_X(memory: MemoryMap, address: number): number {
-    this.regY = memory.readByte(address + this.regX);
+    this.regY = memory.readByte((address + this.regX) & 0xff);
     setZeroNegative(this, this.regY);
     return 4;
   },

@@ -3,6 +3,7 @@ export type MirroringMode = "horizontal" | "vertical";
 export interface MapperConfig {
   prgRom: Uint8Array;
   chrRom: Uint8Array;
+  chrRam: boolean;
   mirroring: MirroringMode;
 }
 

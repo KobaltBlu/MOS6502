@@ -24,7 +24,6 @@ export class NesScheduler {
 
     for (let i = 0; i < PPU_CYCLES_PER_FRAME_NTSC; i++) {
       ctx.ppu.tickCycle();
-      ctx.dma.tick();
 
       if (i % PPU_CYCLES_PER_CPU === 0) {
         if (!ctx.dma.isStalled() && !ctx.apu.isDmcStalled()) {
@@ -34,6 +33,7 @@ export class NesScheduler {
         } else if (!ctx.dma.isStalled()) {
           ctx.apu.tickCpuCycle();
         }
+        ctx.dma.tick();
 
         if (ctx.ppu.consumeNmiRequest()) {
           ctx.cpu.triggerNmi();

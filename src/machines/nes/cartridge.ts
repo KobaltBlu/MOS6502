@@ -16,6 +16,7 @@ import type { IMapper, MirroringMode } from "./mappers";
 import Memory from "../../memory/memory";
 
 const PRG_RAM_SIZE = 0x2000;
+const CHR_RAM_SIZE = 0x2000;
 
 export class INESParseError extends Error {
   constructor(message: string) {
@@ -66,13 +67,14 @@ export class Cartridge implements MemoryDevice {
 
     const { prgRom, chrRom } = sliceInesPayload(buffer, header);
     this.prgRom = prgRom;
-    this.chrRom = chrRom;
+    this.chrRom = chrRom.length === 0 ? new Uint8Array(CHR_RAM_SIZE) : chrRom;
     this.prgRam = new Memory(PRG_RAM_SIZE);
     this.prgRam.baseAddress = 0x6000;
 
     this.mapper = createMapper(this.mapperId, {
       prgRom: this.prgRom,
       chrRom: this.chrRom,
+      chrRam: chrRom.length === 0,
       mirroring: this.mirroring,
     });
 
