@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MOS6502 NES</title>
+  <style>
+    body { background: #111; color: #eee; font-family: sans-serif; text-align: center; }
+    canvas { image-rendering: pixelated; border: 2px solid #444; margin-top: 1rem; }
+    #status { margin: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>NES Emulator</h1>
+  <p id="status">Loading...</p>
+  <input type="file" id="rom" accept=".nes" />
+  <br />
+  <canvas id="screen"></canvas>
+  <p>Keys: WASD/Arrows, Z/A, X/B, Enter/Start, R/Select</p>
+  <script src="bundle.js"></script>
+</body>
+</html>

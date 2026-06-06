@@ -1,0 +1,15 @@
+export const CPU_CYCLES_PER_FRAME_NTSC = 29780;
+export const PPU_CYCLES_PER_FRAME_NTSC = 89342;
+export const PPU_CYCLES_PER_CPU = 3;
+export const RAM_SIZE = 0x0800;
+export const RAM_MIRROR_END = 0x1fff;
+export const RAM_MIRROR_MASK = 0x07ff;
+export const PPU_REG_BASE = 0x2000;
+export const PPU_REG_MIRROR_END = 0x3fff;
+export const PPU_REG_MIRROR_MASK = 0x2007;
+export const APU_BASE = 0x4000;
+export const APU_IO_END = 0x401f;
+export const PRG_RAM_BASE = 0x6000;
+export const PRG_RAM_END = 0x7fff;
+export const CARTRIDGE_BASE = 0x8000;
+export const PRG_ROM_BASE = 0x8000;

@@ -1,0 +1,7 @@
+export const CPU_CYCLES_PER_TICK = 1;
+export const PPU_CYCLES_PER_TICK = 3;
+export const LCD_RENDER_THROTTLE = 1000;
+export const TICK_DELAY_MICROSECONDS = 60;
+export const CYCLES_PER_FRAME = Math.floor(
+  (1_000_000 / TICK_DELAY_MICROSECONDS) * CPU_CYCLES_PER_TICK
+);
