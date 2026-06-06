@@ -49,7 +49,7 @@ export const stackInstructions = {
     return 6;
   },
   RTI(memory: MemoryMap): number {
-    this.status = pullByte(this, memory) & 0xef;
+    this.status = (pullByte(this, memory) & 0xef) | 0x20;
     const lo = pullByte(this, memory);
     const hi = pullByte(this, memory);
     this.programCounter = lo | (hi << 8);
@@ -79,7 +79,7 @@ export const stackInstructions = {
     return 4;
   },
   PLP(memory: MemoryMap): number {
-    this.status = (pullByte(this, memory) & 0xcf) | (this.status & 0x20);
+    this.status = (pullByte(this, memory) & 0xcf) | 0x20;
     return 4;
   },
   pushReturnAddress(memory: MemoryMap, returnAddress: number): void {

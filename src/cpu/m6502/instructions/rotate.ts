@@ -32,7 +32,7 @@ export const rotateInstructions = {
     return 6;
   },
   ROL_ABS_X(memory: MemoryMap, address: number): number {
-    const addr = address + this.regX;
+    const addr = (address + this.regX) & 0xffff;
     const value = rolValue(this, memory.readByte(addr));
     memory.writeByte(addr, value);
     setZeroNegative(this, value);
@@ -63,7 +63,7 @@ export const rotateInstructions = {
     return 6;
   },
   ROR_ABS_X(memory: MemoryMap, address: number): number {
-    const addr = address + this.regX;
+    const addr = (address + this.regX) & 0xffff;
     const value = rorValue(this, memory.readByte(addr));
     memory.writeByte(addr, value);
     setZeroNegative(this, value);

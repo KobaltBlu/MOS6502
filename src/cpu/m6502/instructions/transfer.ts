@@ -20,7 +20,7 @@ export const transferInstructions = {
     return 6; // return the number of cycles used
   },
   DEC_ABS_X(memory: MemoryMap, address: number): number {
-    const addr = address + this.regX;
+    const addr = (address + this.regX) & 0xffff;
     const result = (memory.readByte(addr) - 1) & 0xff;
     memory.writeByte(addr, result);
 

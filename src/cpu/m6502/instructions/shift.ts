@@ -29,7 +29,7 @@ export const shiftInstructions = {
   },
   EOR_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    applyEor(this, memory.readByte(offset));
+    applyEor(this, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -37,7 +37,7 @@ export const shiftInstructions = {
   },
   EOR_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    applyEor(this, memory.readByte(offset));
+    applyEor(this, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -64,9 +64,9 @@ export const shiftInstructions = {
     const addr = base + this.regY;
     applyEor(this, memory.readByte(addr & 0xffff));
     if ((base & 0xff00) !== (addr & 0xff00)) {
-      return 5;
+      return 6;
     }
-    return 4;
+    return 5;
   },
   CLC(): number {
     this.status &= ~this.FLAG_C;
@@ -107,7 +107,7 @@ export const shiftInstructions = {
     return 6;
   },
   LSR_ABS_X(memory: MemoryMap, address: number): number {
-    const addr = address + this.regX;
+    const addr = (address + this.regX) & 0xffff;
     const value = memory.readByte(addr);
     this.status &= ~this.FLAG_C;
     if (value & 0x01) {
@@ -156,7 +156,7 @@ export const shiftInstructions = {
     return 6;
   },
   ASL_ABS_X(memory: MemoryMap, address: number): number {
-    const addr = address + this.regX;
+    const addr = (address + this.regX) & 0xffff;
     const result = aslValue(this, memory.readByte(addr));
     memory.writeByte(addr, result);
     setZeroNegative(this, result);

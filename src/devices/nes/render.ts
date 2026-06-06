@@ -85,7 +85,7 @@ function renderBackgroundPixel(
     return null;
   }
 
-  const baseTable = state.ctrl & 0x03;
+  const baseTable = 0;
   const baseTableX = baseTable & 1;
   const baseTableY = (baseTable >> 1) & 1;
   const x = positiveModulo(dot + scrollX, NAMETABLE_WIDTH * 2);

@@ -7,10 +7,6 @@ export function registerInstructions(cpu: M6502): void {
     readByte,
     readShort,
     readZeroPage,
-    readZeroPageX,
-    readZeroPageY,
-    readZeroPageXIndirect,
-    readZeroPageYIndirect,
   } = addressing;
 
   cpu.instructionsMap.set(OPCODES.LDA, { instruction: cpu.LDA, address: readByte.bind(cpu) });
@@ -55,7 +51,7 @@ export function registerInstructions(cpu: M6502): void {
   cpu.instructionsMap.set(OPCODES.ADC_ABS_X, { instruction: cpu.ADC_ABS_X, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ADC_ABS_Y, { instruction: cpu.ADC_ABS_Y, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ADC_ZP, { instruction: cpu.ADC_ZP, address: readZeroPage.bind(cpu) });
-  cpu.instructionsMap.set(OPCODES.ADC_ZP_X, { instruction: cpu.ADC_ZP_X, address: readZeroPageX.bind(cpu) });
+  cpu.instructionsMap.set(OPCODES.ADC_ZP_X, { instruction: cpu.ADC_ZP_X, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ADC_ZP_XI, { instruction: cpu.ADC_ZP_XI, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ADC_ZP_YI, { instruction: cpu.ADC_ZP_YI, address: readZeroPage.bind(cpu) });
 
@@ -64,7 +60,7 @@ export function registerInstructions(cpu: M6502): void {
   cpu.instructionsMap.set(OPCODES.SBC_ABS_X, { instruction: cpu.SBC_ABS_X, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.SBC_ABS_Y, { instruction: cpu.SBC_ABS_Y, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.SBC_ZP, { instruction: cpu.SBC_ZP, address: readZeroPage.bind(cpu) });
-  cpu.instructionsMap.set(OPCODES.SBC_ZP_X, { instruction: cpu.SBC_ZP_X, address: readZeroPageX.bind(cpu) });
+  cpu.instructionsMap.set(OPCODES.SBC_ZP_X, { instruction: cpu.SBC_ZP_X, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.SBC_ZP_XI, { instruction: cpu.SBC_ZP_XI, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.SBC_ZP_YI, { instruction: cpu.SBC_ZP_YI, address: readZeroPage.bind(cpu) });
 
@@ -73,7 +69,7 @@ export function registerInstructions(cpu: M6502): void {
   cpu.instructionsMap.set(OPCODES.AND_ABS_X, { instruction: cpu.AND_ABS_X, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.AND_ABS_Y, { instruction: cpu.AND_ABS_Y, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.AND_ZP, { instruction: cpu.AND_ZP, address: readZeroPage.bind(cpu) });
-  cpu.instructionsMap.set(OPCODES.AND_ZP_X, { instruction: cpu.AND_ZP_X, address: readZeroPageX.bind(cpu) });
+  cpu.instructionsMap.set(OPCODES.AND_ZP_X, { instruction: cpu.AND_ZP_X, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.AND_ZP_XI, { instruction: cpu.AND_ZP_XI, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.AND_ZP_YI, { instruction: cpu.AND_ZP_YI, address: readZeroPage.bind(cpu) });
 
@@ -82,7 +78,7 @@ export function registerInstructions(cpu: M6502): void {
   cpu.instructionsMap.set(OPCODES.ORA_ABS_X, { instruction: cpu.ORA_ABS_X, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ORA_ABS_Y, { instruction: cpu.ORA_ABS_Y, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ORA_ZP, { instruction: cpu.ORA_ZP, address: readZeroPage.bind(cpu) });
-  cpu.instructionsMap.set(OPCODES.ORA_ZP_X, { instruction: cpu.ORA_ZP_X, address: readZeroPageX.bind(cpu) });
+  cpu.instructionsMap.set(OPCODES.ORA_ZP_X, { instruction: cpu.ORA_ZP_X, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ORA_ZP_XI, { instruction: cpu.ORA_ZP_XI, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.ORA_ZP_YI, { instruction: cpu.ORA_ZP_YI, address: readZeroPage.bind(cpu) });
 
@@ -91,7 +87,7 @@ export function registerInstructions(cpu: M6502): void {
   cpu.instructionsMap.set(OPCODES.EOR_ABS_X, { instruction: cpu.EOR_ABS_X, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.EOR_ABS_Y, { instruction: cpu.EOR_ABS_Y, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.EOR_ZP, { instruction: cpu.EOR_ZP, address: readZeroPage.bind(cpu) });
-  cpu.instructionsMap.set(OPCODES.EOR_ZP_X, { instruction: cpu.EOR_ZP_X, address: readZeroPageX.bind(cpu) });
+  cpu.instructionsMap.set(OPCODES.EOR_ZP_X, { instruction: cpu.EOR_ZP_X, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.EOR_ZP_XI, { instruction: cpu.EOR_ZP_XI, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.EOR_ZP_YI, { instruction: cpu.EOR_ZP_YI, address: readZeroPage.bind(cpu) });
 
@@ -100,7 +96,7 @@ export function registerInstructions(cpu: M6502): void {
   cpu.instructionsMap.set(OPCODES.CMP_ABS_X, { instruction: cpu.CMP_ABS_X, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.CMP_ABS_Y, { instruction: cpu.CMP_ABS_Y, address: readShort.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.CMP_ZP, { instruction: cpu.CMP_ZP, address: readZeroPage.bind(cpu) });
-  cpu.instructionsMap.set(OPCODES.CMP_ZP_X, { instruction: cpu.CMP_ZP_X, address: readZeroPageX.bind(cpu) });
+  cpu.instructionsMap.set(OPCODES.CMP_ZP_X, { instruction: cpu.CMP_ZP_X, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.CMP_ZP_XI, { instruction: cpu.CMP_ZP_XI, address: readZeroPage.bind(cpu) });
   cpu.instructionsMap.set(OPCODES.CMP_ZP_YI, { instruction: cpu.CMP_ZP_YI, address: readZeroPage.bind(cpu) });
 

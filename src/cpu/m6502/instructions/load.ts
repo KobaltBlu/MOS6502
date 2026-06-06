@@ -18,7 +18,7 @@ export const loadInstructions = {
   },
   LDA_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    this.accumulator = memory.readByte(offset);
+    this.accumulator = memory.readByte(offset & 0xffff);
     setZeroNegative(this, this.accumulator);
     if (pageCrossed(address, offset)) {
       return 5;
@@ -27,7 +27,7 @@ export const loadInstructions = {
   },
   LDA_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    this.accumulator = memory.readByte(offset);
+    this.accumulator = memory.readByte(offset & 0xffff);
     setZeroNegative(this, this.accumulator);
     if (pageCrossed(address, offset)) {
       return 5;
@@ -59,9 +59,9 @@ export const loadInstructions = {
     this.accumulator = memory.readByte(addr & 0xffff);
     setZeroNegative(this, this.accumulator);
     if ((base & 0xff00) !== (addr & 0xff00)) {
-      return 5;
+      return 6;
     }
-    return 4;
+    return 5;
   },
   LDX(memory: MemoryMap, address: number): number {
     this.regX = address;
@@ -75,7 +75,7 @@ export const loadInstructions = {
   },
   LDX_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    this.regX = memory.readByte(offset);
+    this.regX = memory.readByte(offset & 0xffff);
     setZeroNegative(this, this.regX);
     if (pageCrossed(address, offset)) {
       return 5;
@@ -104,7 +104,7 @@ export const loadInstructions = {
   },
   LDY_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    this.regY = memory.readByte(offset);
+    this.regY = memory.readByte(offset & 0xffff);
     setZeroNegative(this, this.regY);
     if (pageCrossed(address, offset)) {
       return 5;

@@ -132,6 +132,23 @@ describe("PPU sprite 0 hit", () => {
     expect(framebuffer[256 + 8]).toBe(packRgba8888(nesColorToRgb(0x02)));
   });
 
+  it("clips sprites at the right edge without wrapping pixels to the left", () => {
+    const oam = new Uint8Array(256).fill(0xff);
+    oam[0] = 0;
+    oam[1] = 0;
+    oam[2] = 0;
+    oam[3] = 250;
+    const state = createState({ mask: 0x14, oam });
+    const framebuffer = new Uint32Array(256 * 240);
+
+    renderScanline(state, 1, framebuffer, 0, 0);
+
+    expect(framebuffer[256]).toBe(packRgba8888(nesColorToRgb(0x0f)));
+    expect(framebuffer[256 + 249]).toBe(packRgba8888(nesColorToRgb(0x0f)));
+    expect(framebuffer[256 + 250]).toBe(packRgba8888(nesColorToRgb(0x16)));
+    expect(framebuffer[256 + 255]).toBe(packRgba8888(nesColorToRgb(0x16)));
+  });
+
   it("scrolls background pixels into adjacent nametables", () => {
     const vram = new Uint8Array(0x800);
     vram[0] = 0x01;
@@ -150,6 +167,40 @@ describe("PPU sprite 0 hit", () => {
     renderScanline(state, 0, framebuffer, 256, 0);
 
     expect(framebuffer[0]).toBe(packRgba8888(nesColorToRgb(0x02)));
+  });
+
+  it("keeps unscrolled sprite-0 status hits on the primary nametable", () => {
+    const vram = new Uint8Array(0x800);
+    vram[3 * 32 + 11] = 0x01;
+    const oam = new Uint8Array(256).fill(0xff);
+    oam[0] = 24;
+    oam[1] = 0xff;
+    oam[2] = 0x20;
+    oam[3] = 88;
+    const state = createState({
+      ctrl: 0x15,
+      mask: 0x1e,
+      mirroring: "vertical",
+      vram,
+      oam,
+      chrRead: (address) => {
+        const tile = (address >> 4) & 0xff;
+        const row = address & 0x07;
+        const plane = address & 0x08;
+        if (tile === 0xff && row === 5 && plane === 0) {
+          return 0x7c;
+        }
+        if (tile === 0x01 && row === 6 && plane === 0) {
+          return 0x38;
+        }
+        return 0;
+      },
+    });
+    const framebuffer = new Uint32Array(256 * 240);
+
+    renderScanline(state, 30, framebuffer, 0, 0);
+
+    expect(state.sprite0Hit).toBe(true);
   });
 });
 
@@ -236,6 +287,21 @@ describe("PPU VRAM and status registers", () => {
     expect(ppu.oam[0xfe]).toBe(0xa0);
     expect(ppu.oam[0xff]).toBe(0xa1);
     expect(ppu.oam[0x00]).toBe(0xa2);
+  });
+
+  it("does not increment OAMADDR when OAMDATA is read", () => {
+    const ppu = new NesPpu();
+
+    ppu.writeByte(0x2003, 0x10);
+    ppu.writeByte(0x2004, 0xaa);
+    ppu.writeByte(0x2003, 0x10);
+
+    expect(ppu.readByte(0x2004)).toBe(0xaa);
+    expect(ppu.readByte(0x2004)).toBe(0xaa);
+
+    ppu.writeByte(0x2004, 0xbb);
+    expect(ppu.oam[0x10]).toBe(0xbb);
+    expect(ppu.oam[0x11]).toBe(0);
   });
 
   it("buffers PPUDATA reads outside palette space", () => {

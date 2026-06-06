@@ -101,7 +101,7 @@ export const arithmeticInstructions = {
   },
   ADC_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    doAdc(this, memory.readByte(offset));
+    doAdc(this, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -109,7 +109,7 @@ export const arithmeticInstructions = {
   },
   ADC_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    doAdc(this, memory.readByte(offset));
+    doAdc(this, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -135,9 +135,9 @@ export const arithmeticInstructions = {
     const addr = (lo | (hi << 8)) + this.regY;
     doAdc(this, memory.readByte(addr & 0xffff));
     if (((lo | (hi << 8)) & 0xff00) !== (addr & 0xff00)) {
-      return 5;
+      return 6;
     }
-    return 4;
+    return 5;
   },
   SBC(_memory: MemoryMap, address: number): number {
     doSbc(this, address);
@@ -149,7 +149,7 @@ export const arithmeticInstructions = {
   },
   SBC_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    doSbc(this, memory.readByte(offset));
+    doSbc(this, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -157,7 +157,7 @@ export const arithmeticInstructions = {
   },
   SBC_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    doSbc(this, memory.readByte(offset));
+    doSbc(this, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -183,9 +183,9 @@ export const arithmeticInstructions = {
     const addr = (lo | (hi << 8)) + this.regY;
     doSbc(this, memory.readByte(addr & 0xffff));
     if (((lo | (hi << 8)) & 0xff00) !== (addr & 0xff00)) {
-      return 5;
+      return 6;
     }
-    return 4;
+    return 5;
   },
   AND(_memory: MemoryMap, address: number): number {
     applyLogic(this, address, (a, b) => a & b);
@@ -197,7 +197,7 @@ export const arithmeticInstructions = {
   },
   AND_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    applyLogic(this, memory.readByte(offset), (a, b) => a & b);
+    applyLogic(this, memory.readByte(offset & 0xffff), (a, b) => a & b);
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -205,7 +205,7 @@ export const arithmeticInstructions = {
   },
   AND_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    applyLogic(this, memory.readByte(offset), (a, b) => a & b);
+    applyLogic(this, memory.readByte(offset & 0xffff), (a, b) => a & b);
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -231,9 +231,9 @@ export const arithmeticInstructions = {
     const addr = (lo | (hi << 8)) + this.regY;
     applyLogic(this, memory.readByte(addr & 0xffff), (a, b) => a & b);
     if (((lo | (hi << 8)) & 0xff00) !== (addr & 0xff00)) {
-      return 5;
+      return 6;
     }
-    return 4;
+    return 5;
   },
   ORA(_memory: MemoryMap, address: number): number {
     applyLogic(this, address, (a, b) => a | b);
@@ -245,7 +245,7 @@ export const arithmeticInstructions = {
   },
   ORA_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    applyLogic(this, memory.readByte(offset), (a, b) => a | b);
+    applyLogic(this, memory.readByte(offset & 0xffff), (a, b) => a | b);
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -253,7 +253,7 @@ export const arithmeticInstructions = {
   },
   ORA_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    applyLogic(this, memory.readByte(offset), (a, b) => a | b);
+    applyLogic(this, memory.readByte(offset & 0xffff), (a, b) => a | b);
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -279,9 +279,9 @@ export const arithmeticInstructions = {
     const addr = (lo | (hi << 8)) + this.regY;
     applyLogic(this, memory.readByte(addr & 0xffff), (a, b) => a | b);
     if (((lo | (hi << 8)) & 0xff00) !== (addr & 0xff00)) {
-      return 5;
+      return 6;
     }
-    return 4;
+    return 5;
   },
   CMP(_memory: MemoryMap, address: number): number {
     compare(this, this.accumulator, address);
@@ -293,7 +293,7 @@ export const arithmeticInstructions = {
   },
   CMP_ABS_X(memory: MemoryMap, address: number): number {
     const offset = address + this.regX;
-    compare(this, this.accumulator, memory.readByte(offset));
+    compare(this, this.accumulator, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -301,7 +301,7 @@ export const arithmeticInstructions = {
   },
   CMP_ABS_Y(memory: MemoryMap, address: number): number {
     const offset = address + this.regY;
-    compare(this, this.accumulator, memory.readByte(offset));
+    compare(this, this.accumulator, memory.readByte(offset & 0xffff));
     if (pageCrossed(address, offset)) {
       return 5;
     }
@@ -327,9 +327,9 @@ export const arithmeticInstructions = {
     const addr = (lo | (hi << 8)) + this.regY;
     compare(this, this.accumulator, memory.readByte(addr & 0xffff));
     if (((lo | (hi << 8)) & 0xff00) !== (addr & 0xff00)) {
-      return 5;
+      return 6;
     }
-    return 4;
+    return 5;
   },
   CPX(_memory: MemoryMap, address: number): number {
     compare(this, this.regX, address);
@@ -396,7 +396,7 @@ export const arithmeticInstructions = {
     return 6;
   },
   INC_ABS_X(memory: MemoryMap, address: number): number {
-    incMemory(this, memory, address + this.regX);
+    incMemory(this, memory, (address + this.regX) & 0xffff);
     return 7;
   },
   SEC(): number {

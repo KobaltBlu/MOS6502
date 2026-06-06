@@ -79,19 +79,20 @@ export class M6502 extends CPU {
     if (!this.cycleCount) {
       if (this.nmiPending) {
         this.nmiPending = false;
-        this.cycleCount = this.serviceInterrupt(memory, NMI_VECTOR, false);
+        this.cycleCount = this.serviceInterrupt(memory, NMI_VECTOR, false) - 1;
         return;
       }
       if (this.irqLine && !(this.status & this.FLAG_I)) {
-        this.cycleCount = this.serviceInterrupt(memory, IRQ_VECTOR, false);
+        this.cycleCount = this.serviceInterrupt(memory, IRQ_VECTOR, false) - 1;
         return;
       }
 
-      const instrCode = memory.readByte(this.programCounter++);
+      const instrCode = memory.readByte(this.programCounter);
+      this.programCounter = (this.programCounter + 1) & 0xffff;
       this.currentInstCode = instrCode;
       const instruction = this.instructionsMap.get(instrCode);
       if (!instruction) {
-        this.cycleCount = 2;
+        this.cycleCount = 1;
         return;
       }
       this.currentInst = instruction;
@@ -99,11 +100,12 @@ export class M6502 extends CPU {
       if (instruction.address) {
         this.currentIntrAddress = instruction.address(memory);
       }
-      this.currentIntrCycles = this.cycleCount = instruction.instruction.call(
+      this.currentIntrCycles = instruction.instruction.call(
         this,
         memory,
         this.currentIntrAddress
       );
+      this.cycleCount = this.currentIntrCycles - 1;
       return;
     }
 

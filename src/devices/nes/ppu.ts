@@ -61,7 +61,7 @@ export class NesPpu implements MemoryDevice {
         return status;
       }
       case 4:
-        return this.oam[this.oamAddress++ & 0xff];
+        return this.oam[this.oamAddress & 0xff];
       case 7: {
         const addr = this.ppuAddr;
         const value = this.readPpuData(addr);

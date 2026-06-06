@@ -21,11 +21,11 @@ export const storeInstructions = {
     return 4;
   },
   STA_ABS_X(memory: MemoryMap, address: number): number {
-    memory.writeByte(address + this.regX, this.accumulator);
+    memory.writeByte((address + this.regX) & 0xffff, this.accumulator);
     return 5;
   },
   STA_ABS_Y(memory: MemoryMap, address: number): number {
-    memory.writeByte(address + this.regY, this.accumulator);
+    memory.writeByte((address + this.regY) & 0xffff, this.accumulator);
     return 5;
   },
   STA_ZP(memory: MemoryMap, address: number): number {
