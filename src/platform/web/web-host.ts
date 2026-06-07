@@ -207,28 +207,35 @@ export class WebHost implements IHost {
     if (samples.length === 0) {
       return;
     }
-
+  
     if (!this.audioContext) {
-      this.audioContext = new AudioContext();
+      this.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+      this.nextAudioTime = this.audioContext.currentTime + 0.1;
     }
-
+  
     if (this.audioContext.state === "suspended") {
       void this.audioContext.resume();
     }
-
-    const buffer = this.audioContext.createBuffer(1, samples.length, SAMPLE_RATE);
+  
+    const now = this.audioContext.currentTime;
+  
+    if (this.nextAudioTime < now + 0.03) {
+      this.nextAudioTime = now + 0.08;
+    }
+  
+    const buffer = this.audioContext.createBuffer(
+      1,
+      samples.length,
+      this.audioContext.sampleRate
+    );
+  
     buffer.copyToChannel(samples, 0);
-
+  
     const source = this.audioContext.createBufferSource();
     source.buffer = buffer;
     source.connect(this.audioContext.destination);
-
-    this.nextAudioTime = Math.max(
-      this.nextAudioTime,
-      this.audioContext.currentTime + 0.02
-    );
-
+  
     source.start(this.nextAudioTime);
-    this.nextAudioTime += samples.length / SAMPLE_RATE;
+    this.nextAudioTime += samples.length / this.audioContext.sampleRate;
   }
 }
