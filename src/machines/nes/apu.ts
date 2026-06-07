@@ -1,9 +1,10 @@
 import type { MemoryDevice } from "../../memory/types";
 import type { R2A03 } from "../../cpu/r2a03";
+import type { MemoryMap } from "../../memory/memory-map";
 
 const SAMPLE_RATE = 44100;
 const CPU_CLOCK_NTSC = 1_789_773;
-const SAMPLES_PER_FRAME = Math.ceil(SAMPLE_RATE / 60) + 64;
+const SAMPLES_PER_FRAME = Math.ceil(SAMPLE_RATE / 60) + 128;
 
 const DUTY_TABLE: readonly (readonly number[])[] = [
   [0, 1, 0, 0, 0, 0, 0, 0],
@@ -29,10 +30,24 @@ const NOISE_PERIOD_TABLE: readonly number[] = [
   202, 254, 380, 508, 762, 1016, 2034, 4068,
 ];
 
+const DMC_PERIOD_TABLE: readonly number[] = [
+  428, 380, 340, 320, 286, 254, 226, 214,
+  190, 160, 142, 128, 106, 85, 72, 54,
+];
+
 interface Envelope {
   start: boolean;
   divider: number;
   decay: number;
+}
+
+interface Sweep {
+  reload: boolean;
+  divider: number;
+  enabled: boolean;
+  period: number;
+  negate: boolean;
+  shift: number;
 }
 
 export class NesApu implements MemoryDevice {
@@ -54,6 +69,10 @@ export class NesApu implements MemoryDevice {
     { start: false, divider: 0, decay: 0 },
     { start: false, divider: 0, decay: 0 },
   ];
+  private pulseSweep: Sweep[] = [
+    { reload: false, divider: 0, enabled: false, period: 0, negate: false, shift: 0 },
+    { reload: false, divider: 0, enabled: false, period: 0, negate: false, shift: 0 },
+  ];
 
   private triangleTimer = 0;
   private triangleStep = 0;
@@ -66,12 +85,29 @@ export class NesApu implements MemoryDevice {
   private noiseLength = 0;
   private noiseEnvelope: Envelope = { start: false, divider: 0, decay: 0 };
 
+  private dmcIrqEnabled = false;
+  private dmcLoop = false;
   private dmcEnabled = false;
+  private dmcIrqPending = false;
+  private dmcTimer = 0;
+  private dmcOutputLevel = 0;
+  private dmcSampleAddress = 0xc000;
+  private dmcSampleLength = 1;
+  private dmcCurrentAddress = 0xc000;
+  private dmcBytesRemaining = 0;
+  private dmcSampleBuffer: number | null = null;
+  private dmcShiftRegister = 0;
+  private dmcBitsRemaining = 8;
+  private dmcSilence = true;
   private dmcStallCycles = 0;
 
-  private sampleBuffer = new Float32Array(SAMPLES_PER_FRAME + 8);
+  private sampleBuffer = new Float32Array(SAMPLES_PER_FRAME);
   private sampleIndex = 0;
   private sampleAccumulator = 0;
+
+  private highPassLastInput = 0;
+  private highPassLastOutput = 0;
+  private lowPassLastOutput = 0;
 
   bindCpu(cpu: R2A03): void {
     this.cpu = cpu;
@@ -87,8 +123,9 @@ export class NesApu implements MemoryDevice {
       if (this.pulseLength[1] > 0) status |= 0x02;
       if (this.triangleLength > 0) status |= 0x04;
       if (this.noiseLength > 0) status |= 0x08;
-      if (this.dmcEnabled) status |= 0x10;
+      if (this.dmcBytesRemaining > 0) status |= 0x10;
       if (this.frameIrqPending) status |= 0x40;
+      if (this.dmcIrqPending) status |= 0x80;
 
       this.frameIrqPending = false;
       this.cpu?.clearIrq();
@@ -118,8 +155,8 @@ export class NesApu implements MemoryDevice {
         this.pulseEnvelope[0].start = true;
         break;
 
-      case 0x04:
-        this.pulseEnvelope[1].start = true;
+      case 0x01:
+        this.writeSweep(0, value);
         break;
 
       case 0x03:
@@ -128,6 +165,14 @@ export class NesApu implements MemoryDevice {
         }
         this.pulseDutyStep[0] = 0;
         this.pulseEnvelope[0].start = true;
+        break;
+
+      case 0x04:
+        this.pulseEnvelope[1].start = true;
+        break;
+
+      case 0x05:
+        this.writeSweep(1, value);
         break;
 
       case 0x07:
@@ -156,14 +201,29 @@ export class NesApu implements MemoryDevice {
         this.noiseEnvelope.start = true;
         break;
 
-      case 0x15:
-        this.channelEnable = value & 0x1f;
-        this.dmcEnabled = (value & 0x10) !== 0;
+      case 0x10:
+        this.dmcIrqEnabled = (value & 0x80) !== 0;
+        this.dmcLoop = (value & 0x40) !== 0;
+        if (!this.dmcIrqEnabled) {
+          this.dmcIrqPending = false;
+          this.cpu?.clearIrq();
+        }
+        break;
 
-        if ((value & 0x01) === 0) this.pulseLength[0] = 0;
-        if ((value & 0x02) === 0) this.pulseLength[1] = 0;
-        if ((value & 0x04) === 0) this.triangleLength = 0;
-        if ((value & 0x08) === 0) this.noiseLength = 0;
+      case 0x11:
+        this.dmcOutputLevel = value & 0x7f;
+        break;
+
+      case 0x12:
+        this.dmcSampleAddress = 0xc000 | (value << 6);
+        break;
+
+      case 0x13:
+        this.dmcSampleLength = (value << 4) | 1;
+        break;
+
+      case 0x15:
+        this.writeStatus(value);
         break;
 
       case 0x17:
@@ -181,13 +241,14 @@ export class NesApu implements MemoryDevice {
     }
   }
 
-  tickCpuCycle(): void {
+  tickCpuCycle(memoryMap?: MemoryMap): void {
     if (this.dmcStallCycles > 0) {
       this.dmcStallCycles--;
     }
 
     this.clockFrameCounter();
     this.tickToneGenerators();
+    this.tickDmc(memoryMap);
     this.emitSamples();
   }
 
@@ -195,9 +256,7 @@ export class NesApu implements MemoryDevice {
     return this.dmcStallCycles > 0;
   }
 
-  endFrame(): void {
-    // Samples are consumed by the host after frame execution.
-  }
+  endFrame(): void {}
 
   consumeFrameBuffer(): Float32Array {
     const out = this.sampleBuffer.slice(0, this.sampleIndex);
@@ -223,6 +282,10 @@ export class NesApu implements MemoryDevice {
       { start: false, divider: 0, decay: 0 },
       { start: false, divider: 0, decay: 0 },
     ];
+    this.pulseSweep = [
+      { reload: false, divider: 0, enabled: false, period: 0, negate: false, shift: 0 },
+      { reload: false, divider: 0, enabled: false, period: 0, negate: false, shift: 0 },
+    ];
 
     this.triangleTimer = 0;
     this.triangleStep = 0;
@@ -235,12 +298,61 @@ export class NesApu implements MemoryDevice {
     this.noiseLength = 0;
     this.noiseEnvelope = { start: false, divider: 0, decay: 0 };
 
+    this.dmcIrqEnabled = false;
+    this.dmcLoop = false;
     this.dmcEnabled = false;
+    this.dmcIrqPending = false;
+    this.dmcTimer = 0;
+    this.dmcOutputLevel = 0;
+    this.dmcSampleAddress = 0xc000;
+    this.dmcSampleLength = 1;
+    this.dmcCurrentAddress = 0xc000;
+    this.dmcBytesRemaining = 0;
+    this.dmcSampleBuffer = null;
+    this.dmcShiftRegister = 0;
+    this.dmcBitsRemaining = 8;
+    this.dmcSilence = true;
     this.dmcStallCycles = 0;
 
     this.sampleBuffer.fill(0);
     this.sampleIndex = 0;
     this.sampleAccumulator = 0;
+
+    this.highPassLastInput = 0;
+    this.highPassLastOutput = 0;
+    this.lowPassLastOutput = 0;
+  }
+
+  private writeStatus(value: number): void {
+    this.channelEnable = value & 0x1f;
+
+    if ((value & 0x01) === 0) this.pulseLength[0] = 0;
+    if ((value & 0x02) === 0) this.pulseLength[1] = 0;
+    if ((value & 0x04) === 0) this.triangleLength = 0;
+    if ((value & 0x08) === 0) this.noiseLength = 0;
+
+    this.dmcEnabled = (value & 0x10) !== 0;
+    this.dmcIrqPending = false;
+    this.cpu?.clearIrq();
+
+    if (!this.dmcEnabled) {
+      this.dmcBytesRemaining = 0;
+      return;
+    }
+
+    if (this.dmcBytesRemaining === 0) {
+      this.restartDmcSample();
+    }
+  }
+
+  private writeSweep(channel: 0 | 1, value: number): void {
+    const sweep = this.pulseSweep[channel];
+
+    sweep.enabled = (value & 0x80) !== 0;
+    sweep.period = (value >> 4) & 0x07;
+    sweep.negate = (value & 0x08) !== 0;
+    sweep.shift = value & 0x07;
+    sweep.reload = true;
   }
 
   private clockFrameCounter(): void {
@@ -299,6 +411,8 @@ export class NesApu implements MemoryDevice {
 
   private clockHalfFrame(): void {
     this.clockLengthCounters();
+    this.clockSweep(0);
+    this.clockSweep(1);
   }
 
   private clockEnvelope(envelope: Envelope, control: number): void {
@@ -359,6 +473,31 @@ export class NesApu implements MemoryDevice {
     }
   }
 
+  private clockSweep(channel: 0 | 1): void {
+    const sweep = this.pulseSweep[channel];
+    const base = channel === 0 ? 0 : 4;
+
+    if (sweep.divider === 0) {
+      if (
+        sweep.enabled &&
+        sweep.shift > 0 &&
+        !this.pulseSweepMute(channel)
+      ) {
+        const target = this.pulseSweepTarget(channel);
+        this.setPulsePeriod(base, target);
+      }
+
+      sweep.divider = sweep.period;
+    } else {
+      sweep.divider--;
+    }
+
+    if (sweep.reload) {
+      sweep.reload = false;
+      sweep.divider = sweep.period;
+    }
+  }
+
   private tickToneGenerators(): void {
     this.tickPulse(0, 0);
     this.tickPulse(1, 4);
@@ -372,7 +511,8 @@ export class NesApu implements MemoryDevice {
     if (
       period < 8 ||
       this.pulseLength[channel] === 0 ||
-      (this.channelEnable & (1 << channel)) === 0
+      (this.channelEnable & (1 << channel)) === 0 ||
+      this.pulseSweepMute(channel)
     ) {
       return;
     }
@@ -426,6 +566,68 @@ export class NesApu implements MemoryDevice {
     }
   }
 
+  private tickDmc(memoryMap?: MemoryMap): void {
+    if (this.dmcTimer <= 0) {
+      this.dmcTimer = DMC_PERIOD_TABLE[this.registers[0x10] & 0x0f];
+      this.clockDmcOutputUnit();
+    } else {
+      this.dmcTimer--;
+    }
+
+    if (this.dmcSampleBuffer === null && this.dmcBytesRemaining > 0 && memoryMap) {
+      this.dmcSampleBuffer = memoryMap.readByte(this.dmcCurrentAddress);
+      this.dmcStallCycles = 4;
+
+      this.dmcCurrentAddress = (this.dmcCurrentAddress + 1) & 0xffff;
+      if (this.dmcCurrentAddress < 0x8000) {
+        this.dmcCurrentAddress = 0x8000;
+      }
+
+      this.dmcBytesRemaining--;
+
+      if (this.dmcBytesRemaining === 0) {
+        if (this.dmcLoop) {
+          this.restartDmcSample();
+        } else if (this.dmcIrqEnabled) {
+          this.dmcIrqPending = true;
+          this.cpu?.triggerIrq();
+        }
+      }
+    }
+  }
+
+  private clockDmcOutputUnit(): void {
+    if (!this.dmcSilence) {
+      if ((this.dmcShiftRegister & 1) === 1) {
+        if (this.dmcOutputLevel <= 125) {
+          this.dmcOutputLevel += 2;
+        }
+      } else if (this.dmcOutputLevel >= 2) {
+        this.dmcOutputLevel -= 2;
+      }
+    }
+
+    this.dmcShiftRegister >>= 1;
+    this.dmcBitsRemaining--;
+
+    if (this.dmcBitsRemaining === 0) {
+      this.dmcBitsRemaining = 8;
+
+      if (this.dmcSampleBuffer === null) {
+        this.dmcSilence = true;
+      } else {
+        this.dmcSilence = false;
+        this.dmcShiftRegister = this.dmcSampleBuffer;
+        this.dmcSampleBuffer = null;
+      }
+    }
+  }
+
+  private restartDmcSample(): void {
+    this.dmcCurrentAddress = this.dmcSampleAddress;
+    this.dmcBytesRemaining = this.dmcSampleLength;
+  }
+
   private emitSamples(): void {
     this.sampleAccumulator += SAMPLE_RATE;
 
@@ -433,7 +635,7 @@ export class NesApu implements MemoryDevice {
       this.sampleAccumulator -= CPU_CLOCK_NTSC;
 
       if (this.sampleIndex < this.sampleBuffer.length) {
-        this.sampleBuffer[this.sampleIndex++] = this.mixChannels();
+        this.sampleBuffer[this.sampleIndex++] = this.filterSample(this.mixChannels());
       }
     }
   }
@@ -443,6 +645,7 @@ export class NesApu implements MemoryDevice {
     const pulse2 = this.pulseOutput(1, 4);
     const triangle = this.triangleOutput();
     const noise = this.noiseOutput();
+    const dmc = this.dmcOutputLevel;
 
     const pulseSum = pulse1 + pulse2;
     const pulseMix =
@@ -452,21 +655,40 @@ export class NesApu implements MemoryDevice {
 
     const tndInput =
       triangle / 8227 +
-      noise / 12241;
+      noise / 12241 +
+      dmc / 22638;
 
     const tndMix =
       tndInput === 0
         ? 0
         : 159.79 / (1 / tndInput + 100);
 
-    return Math.max(-1, Math.min(1, (pulseMix + tndMix) * 1.5 - 0.35));
+    return Math.max(-1, Math.min(1, (pulseMix + tndMix) * 1.15));
+  }
+
+  private filterSample(input: number): number {
+    const highPassCoeff = 0.996;
+    const highPass =
+      highPassCoeff * (this.highPassLastOutput + input - this.highPassLastInput);
+
+    this.highPassLastInput = input;
+    this.highPassLastOutput = highPass;
+
+    const lowPassCoeff = 0.5;
+    const lowPass =
+      this.lowPassLastOutput + lowPassCoeff * (highPass - this.lowPassLastOutput);
+
+    this.lowPassLastOutput = lowPass;
+
+    return Math.max(-1, Math.min(1, lowPass));
   }
 
   private pulseOutput(channel: 0 | 1, base: 0 | 4): number {
     if (
       (this.channelEnable & (1 << channel)) === 0 ||
       this.pulseLength[channel] === 0 ||
-      this.pulsePeriod(base) < 8
+      this.pulsePeriod(base) < 8 ||
+      this.pulseSweepMute(channel)
     ) {
       return 0;
     }
@@ -499,14 +721,11 @@ export class NesApu implements MemoryDevice {
       return 0;
     }
 
-    // Slightly attenuated. This avoids the brutal hiss while keeping SMB SFX.
-    return this.envelopeOutput(this.noiseEnvelope, this.registers[12]) * 0.45;
+    return this.envelopeOutput(this.noiseEnvelope, this.registers[12]);
   }
 
   private envelopeOutput(envelope: Envelope, control: number): number {
-    const constantVolume = (control & 0x10) !== 0;
-
-    if (constantVolume) {
+    if ((control & 0x10) !== 0) {
       return control & 0x0f;
     }
 
@@ -515,6 +734,38 @@ export class NesApu implements MemoryDevice {
 
   private pulsePeriod(base: 0 | 4): number {
     return this.registers[base + 2] | ((this.registers[base + 3] & 0x07) << 8);
+  }
+
+  private setPulsePeriod(base: 0 | 4, period: number): void {
+    period &= 0x07ff;
+    this.registers[base + 2] = period & 0xff;
+    this.registers[base + 3] = (this.registers[base + 3] & 0xf8) | ((period >> 8) & 0x07);
+  }
+
+  private pulseSweepTarget(channel: 0 | 1): number {
+    const base = channel === 0 ? 0 : 4;
+    const period = this.pulsePeriod(base);
+    const sweep = this.pulseSweep[channel];
+    const change = period >> sweep.shift;
+
+    if (!sweep.negate) {
+      return period + change;
+    }
+
+    return channel === 0
+      ? period - change - 1
+      : period - change;
+  }
+
+  private pulseSweepMute(channel: 0 | 1): boolean {
+    const base = channel === 0 ? 0 : 4;
+    const period = this.pulsePeriod(base);
+
+    if (period < 8) {
+      return true;
+    }
+
+    return this.pulseSweepTarget(channel) > 0x07ff;
   }
 
   private trianglePeriod(): number {

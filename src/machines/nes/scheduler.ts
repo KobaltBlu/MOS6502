@@ -28,13 +28,14 @@ export class NesScheduler {
       if (i % PPU_CYCLES_PER_CPU === 0) {
         if (!ctx.dma.isStalled() && !ctx.apu.isDmcStalled()) {
           ctx.cpu.clock(ctx.memoryMap);
-          ctx.apu.tickCpuCycle();
+          ctx.apu.tickCpuCycle(ctx.memoryMap);
           cpuCycles++;
         } else if (!ctx.dma.isStalled()) {
-          ctx.apu.tickCpuCycle();
+          ctx.apu.tickCpuCycle(ctx.memoryMap);
         }
+      
         ctx.dma.tick();
-
+      
         if (ctx.ppu.consumeNmiRequest()) {
           ctx.cpu.triggerNmi();
         }
