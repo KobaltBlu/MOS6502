@@ -27,13 +27,17 @@ export class Mmc1Mapper implements IMapper {
       return;
     }
 
+    // Check BEFORE the shift: when the sentinel reaches bit0, the 5th write is in progress.
+    const complete = (this.shiftRegister & 1) !== 0;
     this.shiftRegister = ((this.shiftRegister >> 1) | ((value & 1) << 4)) & 0x1f;
-    if (this.shiftRegister & 1) {
+
+    if (!complete) {
       return;
     }
 
+    // After the shift, the sentinel has fallen off and shiftRegister holds all 5 data bits.
     const reg = (address >> 13) & 0x03;
-    const data = this.shiftRegister >> 1;
+    const data = this.shiftRegister;
     this.shiftRegister = 0x10;
 
     switch (reg) {
@@ -78,7 +82,7 @@ export class Mmc1Mapper implements IMapper {
     }
   }
 
-  readChr(address: number): number {
+  private resolveChrOffset(address: number): number {
     const chrMode = (this.control >> 4) & 1;
     const bankSize = chrMode ? 0x1000 : 0x2000;
     const chrBanks = Math.max(1, this.chrRom.length / bankSize);
@@ -88,17 +92,25 @@ export class Mmc1Mapper implements IMapper {
         address < 0x1000
           ? this.chrBank0 % chrBanks
           : this.chrBank1 % chrBanks;
-      return this.chrRom[bank * bankSize + (address & 0x0fff)] ?? 0;
+      return bank * bankSize + (address & 0x0fff);
     }
 
     const bank = (this.chrBank0 & ~1) % chrBanks;
-    return this.chrRom[bank * bankSize + (address & 0x1fff)] ?? 0;
+    return bank * bankSize + (address & 0x1fff);
+  }
+
+  readChr(address: number): number {
+    return this.chrRom[this.resolveChrOffset(address)] ?? 0;
   }
 
   writeChr(address: number, value: number): void {
     if (this.chrRam) {
-      this.chrRom[address & (this.chrRom.length - 1)] = value & 0xff;
+      this.chrRom[this.resolveChrOffset(address)] = value & 0xff;
     }
+  }
+
+  isPrgRamEnabled(): boolean {
+    return (this.control & 0x10) === 0;
   }
 
   getMirroring(): MirroringMode {

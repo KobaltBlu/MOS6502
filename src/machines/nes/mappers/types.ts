@@ -14,5 +14,6 @@ export interface IMapper {
   readChr(address: number): number;
   writeChr(address: number, value: number): void;
   getMirroring(): MirroringMode;
+  isPrgRamEnabled?(): boolean;
   reset?(): void;
 }

@@ -74,4 +74,30 @@ describe("iNES loader", () => {
     const cart = new Cartridge();
     expect(() => cart.loadINES(buildINES({ mapper: 9 }))).toThrow(INESParseError);
   });
+
+  it("MMC1 PRG-RAM is disabled when control register bit 4 is set", () => {
+    const cart = new Cartridge();
+    cart.loadINES(buildINES({ mapper: 1, chrUnits: 0, prgUnits: 8 }));
+
+    // Write a known value to PRG-RAM
+    cart.writeByte(0x6000, 0x42);
+    expect(cart.readByte(0x6000)).toBe(0x42);
+
+    // Disable PRG-RAM: serial-write control = 0x1C (bit4=1, mode=3) to $8000
+    const disable = 0x1c;
+    for (let i = 0; i < 5; i++) {
+      cart.writeByte(0x8000, (disable >> i) & 1);
+    }
+    expect(cart.readByte(0x6000)).toBe(0);
+
+    // Writes while disabled must be ignored
+    cart.writeByte(0x6000, 0x99);
+
+    // Re-enable: serial-write control = 0x0C (bit4=0)
+    const enable = 0x0c;
+    for (let i = 0; i < 5; i++) {
+      cart.writeByte(0x8000, (enable >> i) & 1);
+    }
+    expect(cart.readByte(0x6000)).toBe(0x42);
+  });
 });

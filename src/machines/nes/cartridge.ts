@@ -132,6 +132,9 @@ export class Cartridge implements MemoryDevice {
 
   readByte(address: number): number {
     if (address >= 0x6000 && address < 0x8000) {
+      if (this.mapper?.isPrgRamEnabled && !this.mapper.isPrgRamEnabled()) {
+        return 0;
+      }
       return this.prgRam.readByte(address);
     }
 
@@ -144,6 +147,9 @@ export class Cartridge implements MemoryDevice {
 
   writeByte(address: number, value: number): void {
     if (address >= 0x6000 && address < 0x8000) {
+      if (this.mapper?.isPrgRamEnabled && !this.mapper.isPrgRamEnabled()) {
+        return;
+      }
       this.prgRam.writeByte(address, value);
       return;
     }

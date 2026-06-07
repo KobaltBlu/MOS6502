@@ -10,9 +10,7 @@ import { OamDma, OAM_DMA_ADDRESS } from "./dma";
 import {
   APU_BASE,
   APU_IO_END,
-  CARTRIDGE_BASE,
   PRG_RAM_BASE,
-  PRG_RAM_END,
   RAM_MIRROR_END,
   RAM_MIRROR_MASK,
   RAM_SIZE,
@@ -84,8 +82,7 @@ export function buildNesMemoryMap(): NesHardware {
   );
   const apuIo = new NesApuIo(apu, controller, dma, memoryMap, ppu);
   memoryMap.addRegion(APU_BASE, APU_IO_END, apuIo);
-  memoryMap.addRegion(PRG_RAM_BASE, PRG_RAM_END, cartridge.prgRam);
-  memoryMap.addRegion(CARTRIDGE_BASE, 0xffff, cartridge);
+  memoryMap.addRegion(PRG_RAM_BASE, 0xffff, cartridge);
 
   return { memoryMap, ram, ppu, apu, cartridge, controller, dma };
 }

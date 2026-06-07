@@ -64,6 +64,7 @@ export class NESMachine extends MachineBase implements IMachine {
   }
 
   stepFrame(): void {
+    this.ppu.mirroring = this.cartridge.getMirroring();
     const frameStart = this.masterCycle;
     nesScheduler.stepFrame({
       cpu: this.cpu as R2A03,

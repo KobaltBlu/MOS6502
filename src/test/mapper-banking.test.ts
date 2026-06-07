@@ -5,6 +5,13 @@ function mapperConfig(prgRom: Uint8Array, chrRom: Uint8Array) {
   return { prgRom, chrRom, chrRam: false, mirroring: "horizontal" as const };
 }
 
+/** Write a 5-bit value to an MMC1 register via the serial shift protocol (LSB first). */
+function mmc1Serial(mapper: ReturnType<typeof createMapper>, address: number, value5: number): void {
+  for (let i = 0; i < 5; i++) {
+    mapper.writePrg(address, (value5 >> i) & 1);
+  }
+}
+
 describe("mapper banking", () => {
   it("UxROM switches PRG at $8000", () => {
     const prg = new Uint8Array(0x8000);
@@ -28,14 +35,59 @@ describe("mapper banking", () => {
     expect(mapper.readChr(0x0000)).toBe(0x02);
   });
 
-  it("MMC1 accepts serial writes", () => {
-    const prg = new Uint8Array(0x4000);
-    prg[0] = 0x42;
+  it("MMC1 switches PRG bank via serial write", () => {
+    const prg = new Uint8Array(0x8000);
+    prg.fill(0x11, 0, 0x4000);
+    prg.fill(0x22, 0x4000, 0x8000);
     const mapper = createMapper(1, mapperConfig(prg, new Uint8Array(0x2000)));
-    for (let bit = 0; bit < 5; bit++) {
-      mapper.writePrg(0x8000, 0x80);
-    }
-    expect(mapper.readPrg(0x8000)).toBe(0x42);
+    // Default: mode 3 — $8000 maps bank 0, $C000 maps last (bank 1)
+    expect(mapper.readPrg(0x8000)).toBe(0x11);
+    expect(mapper.readPrg(0xc000)).toBe(0x22);
+
+    // Write PRG bank register (reg 3, address $E000) with value 1
+    mmc1Serial(mapper, 0xe000, 1);
+    expect(mapper.readPrg(0x8000)).toBe(0x22);
+    expect(mapper.readPrg(0xc000)).toBe(0x22);
+
+    // Switch back to bank 0
+    mmc1Serial(mapper, 0xe000, 0);
+    expect(mapper.readPrg(0x8000)).toBe(0x11);
+  });
+
+  it("MMC1 switches mirroring via control register", () => {
+    const mapper = createMapper(1, mapperConfig(new Uint8Array(0x4000), new Uint8Array(0x2000)));
+    // Default: control=0x0C, bits 0:1 = 0b00 → vertical
+    expect(mapper.getMirroring()).toBe("vertical");
+
+    // Write control = 0x0D (bits 0:1 = 0b01 → horizontal)
+    mmc1Serial(mapper, 0x8000, 0x0d);
+    expect(mapper.getMirroring()).toBe("horizontal");
+
+    // Write control = 0x0C (bits 0:1 = 0b00 → vertical)
+    mmc1Serial(mapper, 0x8000, 0x0c);
+    expect(mapper.getMirroring()).toBe("vertical");
+  });
+
+  it("MMC1 CHR-RAM 4KB mode write/read consistency", () => {
+    const mapper = createMapper(1, {
+      prgRom: new Uint8Array(0x4000),
+      chrRom: new Uint8Array(0x2000),
+      chrRam: true,
+      mirroring: "horizontal",
+    });
+    // Enable 4KB CHR mode: control = 0x1C (bit4=1 | mode=3)
+    mmc1Serial(mapper, 0x8000, 0x1c);
+    // Set chrBank0 = 0, chrBank1 = 1
+    mmc1Serial(mapper, 0xa000, 0);
+    mmc1Serial(mapper, 0xc000, 1);
+
+    mapper.writeChr(0x0000, 0xaa);
+    mapper.writeChr(0x1000, 0xbb);
+
+    expect(mapper.readChr(0x0000)).toBe(0xaa);
+    expect(mapper.readChr(0x1000)).toBe(0xbb);
+    // Ensure banks are distinct
+    expect(mapper.readChr(0x0000)).not.toBe(mapper.readChr(0x1000));
   });
 
   it("allows CHR writes only for CHR-RAM boards", () => {
