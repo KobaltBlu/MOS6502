@@ -23,6 +23,9 @@ export interface PpuRenderState {
   chrRead: (address: number) => number;
   mirroring: "horizontal" | "vertical";
 
+  scrollV: number;
+  fineX: number;
+
   sprite0Hit: boolean;
   sprite0HitScanline: number;
   sprite0HitDot: number;
@@ -35,9 +38,6 @@ const PPUMASK_SHOW_SPRITES_LEFT = 0x04;
 const SPRITE_PRIORITY_BACK = 0x20;
 const SPRITES_PER_SCANLINE = 8;
 const SCREEN_WIDTH = 256;
-const SCREEN_HEIGHT = 240;
-const NAMETABLE_WIDTH = 256;
-const NAMETABLE_HEIGHT = 240;
 
 function mirrorNametableAddress(
   address: number,
@@ -76,16 +76,27 @@ function readVram(state: PpuRenderState, address: number): number {
   return state.vram[mirrored] ?? 0;
 }
 
-function positiveModulo(value: number, modulus: number): number {
-  return ((value % modulus) + modulus) % modulus;
+function incrementHorizontalAddress(v: number): number {
+  if ((v & 0x001f) === 31) {
+    return (v & ~0x001f) ^ 0x0400;
+  }
+
+  return v + 1;
+}
+
+function advanceHorizontalAddress(v: number, tiles: number): number {
+  let next = v;
+
+  for (let i = 0; i < tiles; i++) {
+    next = incrementHorizontalAddress(next);
+  }
+
+  return next;
 }
 
 function renderBackgroundPixel(
   state: PpuRenderState,
-  scanline: number,
-  dot: number,
-  scrollX: number,
-  scrollY: number
+  dot: number
 ): number | null {
   if ((state.mask & PPUMASK_SHOW_BG) === 0) {
     return null;
@@ -95,37 +106,31 @@ function renderBackgroundPixel(
     return null;
   }
 
-  // Keep this as 0 for now. Using ctrl nametable bits directly breaks SMB
-  // until the renderer is made more PPU-scroll accurate.
-  const baseTable =
-  scanline <= 30
-    ? 0
-    : state.ctrl & 0x03;
-  const baseTableX = baseTable & 1;
-  const baseTableY = (baseTable >> 1) & 1;
+  const fineXTotal = state.fineX + dot;
+  const tileAdvance = fineXTotal >> 3;
+  const fineX = fineXTotal & 0x07;
 
-  const x = positiveModulo(dot + scrollX, NAMETABLE_WIDTH * 2);
-  const y = positiveModulo(scanline + scrollY, NAMETABLE_HEIGHT * 2);
+  const pixelV = advanceHorizontalAddress(state.scrollV & 0x7fff, tileAdvance);
 
-  const tableX = (baseTableX + Math.floor(x / NAMETABLE_WIDTH)) & 1;
-  const tableY = (baseTableY + Math.floor(y / NAMETABLE_HEIGHT)) & 1;
+  const coarseX = pixelV & 0x001f;
+  const coarseY = (pixelV >> 5) & 0x001f;
+  const nametableSelect = (pixelV >> 10) & 0x03;
+  const fineY = (pixelV >> 12) & 0x07;
 
-  const tileX = (x % NAMETABLE_WIDTH) >> 3;
-  const tileY = (y % NAMETABLE_HEIGHT) >> 3;
-  const fineY = y & 0x07;
-  const fineX = x & 0x07;
+  const nametableBase = 0x2000 + nametableSelect * 0x400;
 
-  const nametableBase = (tableY * 2 + tableX) * 0x400;
-  const nameAddr = nametableBase + tileY * 32 + tileX;
-  const tileIndex = readVram(state, 0x2000 + nameAddr);
+  const nameAddr = nametableBase + coarseY * 32 + coarseX;
+  const tileIndex = readVram(state, nameAddr);
 
-  const attrTableBase = nametableBase + 0x3c0;
-  const attrX = tileX >> 2;
-  const attrY = tileY >> 2;
-  const attrAddr = attrTableBase + attrY * 8 + attrX;
-  const attr = readVram(state, 0x2000 + attrAddr);
+  const attrAddr =
+    nametableBase +
+    0x03c0 +
+    ((coarseY >> 2) * 8) +
+    (coarseX >> 2);
 
-  const shift = ((tileY & 2) << 1) | (tileX & 2);
+  const attr = readVram(state, attrAddr);
+
+  const shift = ((coarseY & 0x02) << 1) | (coarseX & 0x02);
   const paletteIndex = (attr >> shift) & 0x03;
 
   const bgTable = ((state.ctrl >> 4) & 1) * 0x1000;
@@ -195,7 +200,6 @@ function renderSpritePixel(
 
   const flipY = (sprite.attr & 0x80) !== 0;
   const flipX = (sprite.attr & 0x40) !== 0;
-
   const spriteRow = flipY ? height - 1 - row : row;
 
   let table = ((state.ctrl >> 3) & 1) * 0x1000;
@@ -209,8 +213,8 @@ function renderSpritePixel(
   }
 
   const fineX = flipX ? col : 7 - col;
-
   const patternAddr = table + tileIndex * 16 + fineY;
+
   const plane0 = state.chrRead(patternAddr);
   const plane1 = state.chrRead(patternAddr + 8);
 
@@ -230,22 +234,18 @@ export function renderScanline(
   state: PpuRenderState,
   scanline: number,
   framebuffer: Uint32Array,
-  scrollX = 0,
-  scrollY = 0
+  _legacyScrollX = 0,
+  _legacyScrollY = 0
 ): void {
   const rowOffset = scanline * SCREEN_WIDTH;
   const sprites = collectSprites(state, scanline);
 
-  for (let dot = 0; dot < SCREEN_WIDTH; dot++) {
-    let color = 0;
+  state.sprite0Hit = false;
+  state.sprite0HitScanline = -1;
+  state.sprite0HitDot = -1;
 
-    const bgColor = renderBackgroundPixel(
-      state,
-      scanline,
-      dot,
-      scrollX,
-      scrollY
-    );
+  for (let dot = 0; dot < SCREEN_WIDTH; dot++) {
+    const bgColor = renderBackgroundPixel(state, dot);
 
     let spriteColor: number | null = null;
     let spriteIndex = -1;
@@ -268,7 +268,7 @@ export function renderScanline(
     }
 
     if (
-      // !state.sprite0Hit &&
+      !state.sprite0Hit &&
       spriteIndex === 0 &&
       spriteColor !== null &&
       bgColor !== null &&
@@ -279,6 +279,8 @@ export function renderScanline(
       state.sprite0HitScanline = scanline;
       state.sprite0HitDot = dot;
     }
+
+    let color: number;
 
     if (spriteColor !== null && (bgColor === null || !spritePriorityBack)) {
       color = nesColorToRgb(spriteColor);
@@ -303,14 +305,10 @@ function packRgba8888(rgb: number): number {
 export function renderFrame(
   state: PpuRenderState,
   framebuffer: Uint32Array,
-  scrollX = 0,
-  scrollY = 0
+  _legacyScrollX = 0,
+  _legacyScrollY = 0
 ): void {
-  state.sprite0Hit = false;
-  state.sprite0HitScanline = -1;
-  state.sprite0HitDot = -1;
-
-  for (let scanline = 0; scanline < SCREEN_HEIGHT; scanline++) {
-    renderScanline(state, scanline, framebuffer, scrollX, scrollY);
+  for (let scanline = 0; scanline < 240; scanline++) {
+    renderScanline(state, scanline, framebuffer);
   }
 }

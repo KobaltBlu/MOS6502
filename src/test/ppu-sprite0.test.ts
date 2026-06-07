@@ -35,6 +35,8 @@ function createState(overrides: Partial<PpuRenderState> = {}): PpuRenderState {
     palette,
     chrRead: () => 0xff,
     mirroring: "horizontal",
+    scrollV: 0,
+    fineX: 0,
     sprite0Hit: false,
     sprite0HitScanline: -1,
     sprite0HitDot: -1,
