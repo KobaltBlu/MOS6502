@@ -3,7 +3,6 @@ import Memory from "../../memory/memory";
 import { MemoryMap } from "../../memory/memory-map";
 import ROM from "../../memory/rom";
 import { LCDScreen } from "../../devices/lcd-screen";
-import { PPU } from "../../devices/ppu";
 import { MachineBase } from "../../core/machine-base";
 import type { IMachine } from "../../core/i-machine";
 import {
@@ -22,33 +21,29 @@ export class Generic6502Machine extends MachineBase implements IMachine {
   readonly name = "Generic 6502 Dev Board";
 
   ram: Memory;
-  ppu: PPU;
   rom: ROM;
   terminalScreen: LCDScreen;
 
   constructor() {
     const ram = new Memory(RAM_SIZE);
     const cpu = new M6502();
-    const ppu = new PPU(320, 240);
     const rom = new ROM(ROM_SIZE);
     const terminalScreen = new LCDScreen();
     const memoryMap = new MemoryMap();
 
     memoryMap.addRegion(RAM_BASE, RAM_BASE + RAM_SIZE - 1, ram);
     memoryMap.addRegion(LCD_BASE, LCD_BASE + LCD_SIZE - 1, terminalScreen);
-    memoryMap.addRegion(PPU_BASE, PPU_BASE + PPU_SIZE - 1, ppu);
     memoryMap.addRegion(ROM_BASE, 0xffff, rom);
 
     super(cpu, memoryMap, {
       ppuCyclesPerCpuCycle: 3,
       tickables: [terminalScreen],
       onCpuCycle: () => {
-        ppu.clock();
+        
       },
     });
 
     this.ram = ram;
-    this.ppu = ppu;
     this.rom = rom;
     this.terminalScreen = terminalScreen;
   }
