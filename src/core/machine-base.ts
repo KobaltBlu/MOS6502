@@ -19,8 +19,12 @@ export abstract class MachineBase implements IMachine {
     this.memoryMap = memoryMap;
   }
 
+  loadMedia(data: Uint8Array): void {
+    //stub method
+  }
+
   step(cycles: number = CPU_CYCLES_PER_TICK): void {
-    
+    //stub method
   }
 
   reset(): void {
@@ -31,6 +35,4 @@ export abstract class MachineBase implements IMachine {
   getMasterCycle(): number {
     return this.masterCycle;
   }
-
-  abstract loadProgram(data: Uint8Array): void;
 }

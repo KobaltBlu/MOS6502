@@ -40,7 +40,7 @@ export class Generic6502Machine extends MachineBase implements IMachine {
     this.terminalScreen = terminalScreen;
   }
 
-  loadProgram(data: Uint8Array): void {
+  loadMedia(data: Uint8Array): void {
     this.rom.writeData(data);
   }
 }

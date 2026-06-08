@@ -185,7 +185,7 @@ async function loadRomFile(file: File): Promise<void> {
   try {
     machine = createMachine("nes") as NESMachine;
     host.setDisplaySize(machine.display?.width ?? 256, machine.display?.height ?? 240);
-    machine.loadProgram(data);
+    machine.loadMedia(data);
 
     updateRomMeta(file.name);
 
@@ -216,7 +216,7 @@ function resetEmulator(): void {
   try {
     machine = createMachine("nes") as NESMachine;
     host.setDisplaySize(machine.display?.width ?? 256, machine.display?.height ?? 240);
-    machine.loadProgram(currentRomData);
+    machine.loadMedia(currentRomData);
 
     updateRomMeta(currentRomFileName);
 

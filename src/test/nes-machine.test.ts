@@ -37,7 +37,7 @@ describe("NESMachine", () => {
     cpuClock.mockRestore();
   });
 
-  it("loads iNES programs via loadProgram", () => {
+  it("loads iNES programs via loadMedia", () => {
     const machine = new NESMachine();
     const rom = new Uint8Array(16 + 0x4000);
     rom[0] = 0x4e;
@@ -48,7 +48,7 @@ describe("NESMachine", () => {
     rom[5] = 0;
     rom[16] = 0x99;
 
-    machine.loadProgram(rom);
+    machine.loadMedia(rom);
     expect(machine.memoryMap.readByte(0x8000)).toBe(0x99);
   });
 });

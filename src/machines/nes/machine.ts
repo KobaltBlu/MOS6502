@@ -45,7 +45,7 @@ export class NESMachine extends MachineBase implements IMachine {
     this.dma = hardware.dma;
   }
 
-  loadProgram(data: Uint8Array): void {
+  loadMedia(data: Uint8Array): void {
     this.cartridge.loadINES(data);
     this.ppu.mirroring = this.cartridge.getMirroring();
     this.ppu.chrRead = (address) => this.cartridge.readChr(address);

@@ -14,7 +14,7 @@ describe("Super Mario Bros ROM integration", () => {
 
     const rom = readFileSync(SMB_PATH);
     const machine = new NESMachine();
-    machine.loadProgram(new Uint8Array(rom));
+    machine.loadMedia(new Uint8Array(rom));
     machine.cpu.reset(machine.memoryMap);
     machine.reset();
 

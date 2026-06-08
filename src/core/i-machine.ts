@@ -9,6 +9,6 @@ export interface IMachine {
   running: boolean;
   step(cycles?: number): void;
   reset(): void;
-  loadProgram(data: Uint8Array): void;
+  loadMedia(data: Uint8Array): void;
   getMasterCycle(): number;
 }
