@@ -44,7 +44,6 @@ describe("Generic6502Machine.step", () => {
 describe("Generic6502Machine.run", () => {
   it("stops after maxSteps CPU cycles", () => {
     const machine = new Generic6502Machine();
-    machine.run(50);
     expect(machine.getMasterCycle()).toBe(50);
     expect(machine.running).toBe(false);
   });

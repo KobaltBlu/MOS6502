@@ -1,5 +1,4 @@
 import type { NesControllerState } from "../../platform/host";
-import { nesLog } from "../../platform/nes-debug-log";
 import { R2A03 } from "../../cpu/r2a03";
 import { MachineBase } from "../../core/machine-base";
 import type { IMachine } from "../../core/i-machine";
@@ -9,17 +8,18 @@ import { NesPpu } from "../../devices/nes/ppu";
 import { NesApu } from "./apu";
 import { NesController } from "./controller";
 import { OamDma } from "./dma";
-import { nesScheduler } from "./scheduler";
 import Memory from "../../memory/memory";
 import {
   CPU_CYCLES_PER_FRAME_NTSC,
   PPU_CYCLES_PER_CPU,
+  PPU_CYCLES_PER_FRAME_NTSC,
 } from "./constants";
 
 export class NESMachine extends MachineBase implements IMachine {
   readonly id = "nes";
   readonly name = "Nintendo Entertainment System (NTSC)";
 
+  cpu: R2A03;
   ram: Memory;
   ppu: NesPpu;
   apu: NesApu;
@@ -32,13 +32,7 @@ export class NESMachine extends MachineBase implements IMachine {
     const cpu = new R2A03();
     hardware.apu.bindCpu(cpu);
 
-    super(cpu, hardware.memoryMap, {
-      ppuCyclesPerCpuCycle: PPU_CYCLES_PER_CPU,
-      onCpuCycle: () => {
-        hardware.ppu.clock();
-        hardware.dma.tick();
-      },
-    });
+    super(cpu, hardware.memoryMap);
 
     this.ram = hardware.ram;
     this.ppu = hardware.ppu;
@@ -54,26 +48,33 @@ export class NESMachine extends MachineBase implements IMachine {
     this.ppu.mirroring = this.cartridge.getMirroring();
     this.ppu.chrRead = (address) => this.cartridge.readChr(address);
     this.ppu.chrWrite = (address, value) => this.cartridge.writeChr(address, value);
-    const chrSample = this.cartridge.readChr(0);
-    const prgSample = this.cartridge.readByte(0x8000);
-    nesLog("machine", "PPU wired to cartridge", {
-      mirroring: this.ppu.mirroring,
-      chrSample: `$${chrSample.toString(16)}`,
-      prgSample8000: `$${prgSample.toString(16)}`,
-    });
   }
 
   stepFrame(): void {
     this.ppu.mirroring = this.cartridge.getMirroring();
     const frameStart = this.masterCycle;
-    nesScheduler.stepFrame({
-      cpu: this.cpu as R2A03,
-      memoryMap: this.memoryMap,
-      ppu: this.ppu,
-      apu: this.apu,
-      dma: this.dma,
-      controller: this.controller,
-    });
+
+    for (let i = 0; i < PPU_CYCLES_PER_FRAME_NTSC; i++) {
+      this.ppu.tickCycle();
+
+      if (i % PPU_CYCLES_PER_CPU === 0) {
+        if (!this.dma.isStalled() && !this.apu.isDmcStalled()) {
+          this.cpu.clock(this.memoryMap);
+          this.apu.tickCpuCycle(this.memoryMap);
+        } else if (!this.dma.isStalled()) {
+          this.apu.tickCpuCycle(this.memoryMap);
+        }
+      
+        this.dma.tick();
+      
+        if (this.ppu.consumeNmiRequest()) {
+          this.cpu.triggerNmi();
+        }
+      }
+    }
+
+    this.controller.poll();
+    this.apu.endFrame();
     this.masterCycle = frameStart + CPU_CYCLES_PER_FRAME_NTSC;
   }
 
@@ -91,6 +92,7 @@ export class NESMachine extends MachineBase implements IMachine {
     this.dma.reset();
     this.controller.reset();
     this.cartridge.reset();
+    this.cpu.reset(this.memoryMap);
   }
 }
 

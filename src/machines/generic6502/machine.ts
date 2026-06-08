@@ -8,8 +8,6 @@ import type { IMachine } from "../../core/i-machine";
 import {
   LCD_BASE,
   LCD_SIZE,
-  PPU_BASE,
-  PPU_SIZE,
   RAM_BASE,
   RAM_SIZE,
   ROM_BASE,
@@ -35,13 +33,7 @@ export class Generic6502Machine extends MachineBase implements IMachine {
     memoryMap.addRegion(LCD_BASE, LCD_BASE + LCD_SIZE - 1, terminalScreen);
     memoryMap.addRegion(ROM_BASE, 0xffff, rom);
 
-    super(cpu, memoryMap, {
-      ppuCyclesPerCpuCycle: 3,
-      tickables: [terminalScreen],
-      onCpuCycle: () => {
-        
-      },
-    });
+    super(cpu, memoryMap);
 
     this.ram = ram;
     this.rom = rom;

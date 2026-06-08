@@ -1,9 +1,10 @@
 import { createMachine } from "../core/machine-factory";
-import { runMachine } from "../platform/runner";
+import type { IHost } from "../platform/host";
 import { nesError, nesLog } from "../platform/nes-debug-log";
 import { WebHost, type VideoScaleMode } from "../platform/web/web-host";
 import type { NESMachine } from "../machines/nes/machine";
 import type { NesControllerState } from "../platform/host";
+import { PPU_CYCLES_PER_CPU, PPU_CYCLES_PER_FRAME_NTSC } from "../machines/nes/constants";
 
 const DEFAULT_SCALE = 3;
 
@@ -196,9 +197,7 @@ async function loadRomFile(file: File): Promise<void> {
 
     canvas.focus();
 
-    runMachine(machine, host, {
-      loadGeneration: generation,
-    });
+    runMachine(machine, host);
   } catch (error) {
     nesError("load", "ROM load failed", error);
     setStatus(`ROM load failed: ${String(error)}`);
@@ -212,8 +211,6 @@ function resetEmulator(): void {
     return;
   }
 
-  const generation = ++loadGeneration;
-
   try {
     machine = createMachine("nes") as NESMachine;
     machine.loadProgram(currentRomData);
@@ -223,9 +220,7 @@ function resetEmulator(): void {
     setStatus(`Reset ${currentRomFileName}`);
     canvas.focus();
 
-    runMachine(machine, host, {
-      loadGeneration: generation,
-    });
+    runMachine(machine, host);
   } catch (error) {
     nesError("reset", "Reset failed", error);
     setStatus(`Reset failed: ${String(error)}`);
@@ -449,3 +444,43 @@ nesLog("init", "Web UI ready", {
 });
 
 setStatus("Open or drop a .nes ROM file");
+
+let webFrameLoopId = 0;
+let activeWebLoopId = 0;
+let queuedRAF: number | null = null;
+
+export function runMachine(
+  machine: NESMachine,
+  host: IHost
+): void {
+  if (queuedRAF) {
+    cancelAnimationFrame(queuedRAF);
+    queuedRAF = null;
+  }
+
+  machine.reset();
+  machine.running = true;
+
+  const loopId = ++webFrameLoopId;
+  activeWebLoopId = loopId;
+  let frameCount = 0;
+
+  const frame = () => {
+    if (!machine.running || activeWebLoopId !== loopId) {
+      return;
+    }
+
+    machine.pollControllers(host.pollInput());
+    machine.stepFrame();
+
+    host.presentFrame(machine.ppu.framebuffer);
+    const audio = machine.apu.consumeFrameBuffer();
+    if (audio.length) {
+      host.pushAudio(audio);
+    }
+
+    frameCount++;
+    queuedRAF = requestAnimationFrame(frame);
+  };
+  queuedRAF = requestAnimationFrame(frame);
+}

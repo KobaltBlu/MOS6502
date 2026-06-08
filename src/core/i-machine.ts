@@ -8,7 +8,6 @@ export interface IMachine {
   memoryMap: MemoryMap;
   running: boolean;
   step(cycles?: number): void;
-  run(maxSteps?: number): void;
   reset(): void;
   loadProgram(data: Uint8Array): void;
   getMasterCycle(): number;
