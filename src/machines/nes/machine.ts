@@ -32,7 +32,10 @@ export class NESMachine extends MachineBase implements IMachine {
     const cpu = new R2A03();
     hardware.apu.bindCpu(cpu);
 
-    super(cpu, hardware.memoryMap);
+    super(cpu, hardware.memoryMap, {
+      width: 256,
+      height: 240
+    });
 
     this.ram = hardware.ram;
     this.ppu = hardware.ppu;
@@ -40,7 +43,6 @@ export class NESMachine extends MachineBase implements IMachine {
     this.cartridge = hardware.cartridge;
     this.controller = hardware.controller;
     this.dma = hardware.dma;
-    this.cpu = cpu;
   }
 
   loadProgram(data: Uint8Array): void {

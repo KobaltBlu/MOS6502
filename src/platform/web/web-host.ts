@@ -1,8 +1,8 @@
 import type { IHost, NesControllerState } from "../host";
 import { SAMPLE_RATE } from "../../machines/nes/apu";
 
-const NES_WIDTH = 256;
-const NES_HEIGHT = 240;
+// const NES_WIDTH = 256;
+// const NES_HEIGHT = 240;
 
 export type VideoScaleMode = "integer" | "fit" | "stretch";
 
@@ -10,6 +10,8 @@ export interface WebHostVideoOptions {
   scaleMode: VideoScaleMode;
   scale: number;
   smoothing: boolean;
+  width: number;
+  height: number;
 }
 
 type NesButton = keyof NesControllerState;
@@ -33,7 +35,7 @@ export class WebHost implements IHost {
 
   private readonly frameCanvas: HTMLCanvasElement;
   private readonly frameCtx: CanvasRenderingContext2D;
-  private readonly imageData: ImageData;
+  private imageData: ImageData;
 
   private readonly viewport: HTMLElement | null;
 
@@ -47,6 +49,8 @@ export class WebHost implements IHost {
     scaleMode: "integer",
     scale: 3,
     smoothing: false,
+    width: 640,
+    height: 480,
   };
 
   constructor(canvas: HTMLCanvasElement, viewport?: HTMLElement | null) {
@@ -61,8 +65,8 @@ export class WebHost implements IHost {
     this.ctx = ctx;
 
     this.frameCanvas = document.createElement("canvas");
-    this.frameCanvas.width = NES_WIDTH;
-    this.frameCanvas.height = NES_HEIGHT;
+    this.frameCanvas.width = this.videoOptions.width;
+    this.frameCanvas.height = this.videoOptions.height;
 
     const frameCtx = this.frameCanvas.getContext("2d");
     if (!frameCtx) {
@@ -70,7 +74,7 @@ export class WebHost implements IHost {
     }
 
     this.frameCtx = frameCtx;
-    this.imageData = frameCtx.createImageData(NES_WIDTH, NES_HEIGHT);
+    this.imageData = frameCtx.createImageData(this.videoOptions.width, this.videoOptions.height);
 
     this.applyVideoOptions();
 
@@ -91,6 +95,12 @@ export class WebHost implements IHost {
 
   getVideoOptions(): WebHostVideoOptions {
     return { ...this.videoOptions };
+  }
+
+  setDisplaySize(width: number, height: number): void {
+    this.videoOptions.width = width;
+    this.videoOptions.height = height;
+    this.applyVideoOptions();
   }
 
   setScale(scale: number): void {
@@ -116,11 +126,13 @@ export class WebHost implements IHost {
   }
 
   private applyVideoOptions(): void {
+    this.imageData = this.frameCtx.createImageData(this.videoOptions.width, this.videoOptions.height);
+
     const viewportRect = this.viewport?.getBoundingClientRect();
     const { scaleMode, scale, smoothing } = this.videoOptions;
 
-    let outputWidth = NES_WIDTH * scale;
-    let outputHeight = NES_HEIGHT * scale;
+    let outputWidth = this.videoOptions.width * scale;
+    let outputHeight = this.videoOptions.height * scale;
 
     if (viewportRect) {
       const availableWidth = Math.max(1, viewportRect.width);
@@ -129,21 +141,21 @@ export class WebHost implements IHost {
       if (scaleMode === "integer") {
         const maxScale = Math.max(
           1,
-          Math.floor(Math.min(availableWidth / NES_WIDTH, availableHeight / NES_HEIGHT))
+          Math.floor(Math.min(availableWidth / this.videoOptions.width, availableHeight / this.videoOptions.height))
         );
 
         const finalScale = Math.max(1, Math.min(Math.floor(scale), maxScale));
 
-        outputWidth = NES_WIDTH * finalScale;
-        outputHeight = NES_HEIGHT * finalScale;
+        outputWidth = this.videoOptions.width * finalScale;
+        outputHeight = this.videoOptions.height * finalScale;
       } else if (scaleMode === "fit") {
         const fitScale = Math.max(
           1,
-          Math.min(availableWidth / NES_WIDTH, availableHeight / NES_HEIGHT)
+          Math.min(availableWidth / this.videoOptions.width, availableHeight / this.videoOptions.height)
         );
 
-        outputWidth = Math.floor(NES_WIDTH * fitScale);
-        outputHeight = Math.floor(NES_HEIGHT * fitScale);
+        outputWidth = Math.floor(this.videoOptions.width * fitScale);
+        outputHeight = Math.floor(this.videoOptions.height * fitScale);
       } else {
         outputWidth = Math.floor(availableWidth);
         outputHeight = Math.floor(availableHeight);
@@ -177,8 +189,8 @@ export class WebHost implements IHost {
       this.frameCanvas,
       0,
       0,
-      NES_WIDTH,
-      NES_HEIGHT,
+      this.videoOptions.width,
+      this.videoOptions.height,
       0,
       0,
       this.canvas.width,
@@ -229,7 +241,7 @@ export class WebHost implements IHost {
       this.audioContext.sampleRate
     );
   
-    buffer.copyToChannel(samples, 0);
+    buffer.copyToChannel(samples as any, 0);
   
     const source = this.audioContext.createBufferSource();
     source.buffer = buffer;

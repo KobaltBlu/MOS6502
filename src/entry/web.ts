@@ -48,6 +48,7 @@ if (!fileInput) {
 
 const host = new WebHost(canvas, viewport);
 let machine = createMachine("nes") as NESMachine;
+host.setDisplaySize(machine.display?.width ?? 256, machine.display?.height ?? 240);
 
 let loadGeneration = 0;
 let currentRomData: Uint8Array | null = null;
@@ -183,6 +184,7 @@ async function loadRomFile(file: File): Promise<void> {
 
   try {
     machine = createMachine("nes") as NESMachine;
+    host.setDisplaySize(machine.display?.width ?? 256, machine.display?.height ?? 240);
     machine.loadProgram(data);
 
     updateRomMeta(file.name);
@@ -213,6 +215,7 @@ function resetEmulator(): void {
 
   try {
     machine = createMachine("nes") as NESMachine;
+    host.setDisplaySize(machine.display?.width ?? 256, machine.display?.height ?? 240);
     machine.loadProgram(currentRomData);
 
     updateRomMeta(currentRomFileName);

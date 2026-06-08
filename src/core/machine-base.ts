@@ -1,6 +1,7 @@
 import type { ICpu } from "../cpu/types";
 import type { MemoryMap } from "../memory/memory-map";
 import { CPU_CYCLES_PER_TICK } from "./clock";
+import { IDisplay } from "./i-display";
 import type { IMachine } from "./i-machine";
 
 export abstract class MachineBase implements IMachine {
@@ -11,7 +12,9 @@ export abstract class MachineBase implements IMachine {
   running: boolean = false;
   protected masterCycle: number = 0;
 
-  constructor(cpu: ICpu, memoryMap: MemoryMap) {
+  display?: IDisplay;
+
+  constructor(cpu: ICpu, memoryMap: MemoryMap, display?: IDisplay) {
     this.cpu = cpu;
     this.memoryMap = memoryMap;
   }
